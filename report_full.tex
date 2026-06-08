@@ -1,0 +1,341 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath, amssymb}
+\usepackage{graphicx}
+\usepackage{geometry}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{hyperref}
+\usepackage{cite}
+\usepackage{setspace}
+
+\geometry{top=2.5cm, bottom=2.5cm, left=3cm, right=2cm}
+\setstretch{1.25}
+
+\begin{document}
+
+% --- Title Page ---
+\begin{titlepage}
+    \centering
+    \vspace*{2cm}
+    {\Large \textbf{HANOI UNIVERSITY OF SCIENCE AND TECHNOLOGY}} \\
+    \vspace{0.5cm}
+    {\large \textbf{SCHOOL OF ELECTRICAL AND ELECTRONIC ENGINEERING}} \\
+    \vspace{3cm}
+    {\Large \textbf{Project Report of Background Digital Communication}} \\
+    \vspace{1.5cm}
+    {\Large \textbf{Performance Evaluation of 2x2 MIMO-OFDM System with Alamouti STBC and 16-QAM over Rayleigh Fading Channels}} \\
+    \vspace{3cm}
+    \vfill
+    {\large \textbf{Author:} [Your Name/Group]} \\
+    {\large \textbf{Student ID:} [Your ID]} \\
+    \vspace{2cm}
+    {\large \today}
+\end{titlepage}
+
+% --- Abstract ---
+\begin{abstract}
+The objective of this project is to simulate and evaluate the performance of a 2x2 Multiple-Input Multiple-Output Orthogonal Frequency Division Multiplexing (MIMO-OFDM) communication system. The system utilizes 16-QAM modulation and Alamouti Space-Time Block Coding (STBC) over a multipath Rayleigh fading channel with Additive White Gaussian Noise (AWGN). Perfect Channel State Information (CSI) is assumed at the receiver to perform Maximum Likelihood detection. The system's performance is quantitatively evaluated using Bit Error Rate (BER) and Symbol Error Rate (SER) as functions of the Signal-to-Noise Ratio (SNR). Simulation results demonstrate the effectiveness of combining OFDM with Alamouti STBC to combat multipath fading and achieve significant diversity gain.
+\end{abstract}
+
+\newpage
+\tableofcontents
+\newpage
+
+% --- Section 1 ---
+\section{Introduction}
+The rapid evolution of wireless communication demands robust systems capable of high data rates and reliable transmission over hostile propagation environments. This project simulates a 2x2 MIMO-OFDM communication system using 16-Quadrature Amplitude Modulation (16-QAM) over a multipath Rayleigh fading channel with Additive White Gaussian Noise (AWGN). Alamouti Space-Time Block Coding (STBC) is employed to provide transmit diversity. The system performance is evaluated by analyzing the Bit Error Rate (BER) and Symbol Error Rate (SER) across various Signal-to-Noise Ratio (SNR) levels.
+
+\section{Overview of Technologies Used}
+This project integrates several fundamental technologies in modern digital communication systems:
+\begin{itemize}
+    \item \textbf{OFDM (Orthogonal Frequency Division Multiplexing):} Adopted for its high spectral efficiency and robustness against frequency-selective fading. By dividing the bandwidth into orthogonal subcarriers and employing a Cyclic Prefix (CP), OFDM mitigates Inter-Symbol Interference (ISI).
+    \item \textbf{16-QAM (Quadrature Amplitude Modulation):} A high-order modulation scheme mapping 4 bits per symbol, significantly improving spectral efficiency compared to lower-order schemes.
+    \item \textbf{MIMO and Alamouti STBC:} Multiple-Input Multiple-Output (MIMO) technology using the Alamouti STBC scheme to exploit spatial diversity, combat deep fading, and improve link reliability without requiring extra bandwidth.
+    \item \textbf{Rayleigh Fading Channel:} Characterizes environments with rich multipath propagation. Additive White Gaussian Noise (AWGN) is also incorporated to model thermal noise at the receiver.
+\end{itemize}
+
+\section{Theoretical Background}
+
+\subsection{Orthogonal Frequency Division Multiplexing (OFDM)}
+Orthogonal Frequency-Division Multiplexing (OFDM) is a special case of FDM (Frequency Division Multiplexing). In the FDM technique, the total bandwidth of the transmission link is divided into $N$ non-overlapping frequency channels. The signal of each channel is modulated with a subcarrier, and the $N$ channels are multiplexed using frequency division. This results in bandwidth inefficiency; to overcome this drawback of FDM, the OFDM technique was introduced.
+
+This technique divides the frequency band into numerous sub-bands with different carriers, each of which is modulated to transmit a low-rate data stream. The aggregate of these low-rate data streams constitutes the high-rate data stream required for transmission. Furthermore, the carriers employed are orthogonal to each other, allowing their spectra to overlap without causing interference. Consequently, bandwidth utilization becomes significantly more efficient.
+
+\subsubsection{Orthogonality Principle}
+The fundamental concept of OFDM relies on the mathematical orthogonality of its subcarriers. Over a single symbol period $T_s$, two subcarriers with frequencies $f_k$ and $f_m$ are orthogonal if the integral of their product over the symbol duration equals zero. Mathematically, this continuous-time condition is expressed as:
+\begin{equation}
+\frac{1}{T_s} \int_{0}^{T_s} e^{j2\pi f_k t} \times e^{-j2\pi f_m t} dt = 
+\begin{cases} 
+1, & \text{if } k = m \\ 
+0, & \text{if } k \neq m 
+\end{cases}
+\end{equation}
+
+To satisfy this condition, the subcarrier spacing $\Delta f$ is chosen to be the reciprocal of the useful symbol duration $1/T_s$, such that $\Delta f = 1/T_s$. In the frequency domain, the spectrum of each subcarrier follows a sinc function shape. This precise spacing ensures that the peak of one subcarrier aligns with the nulls of all other subcarriers in the frequency domain. Consequently, crosstalk between subcarriers - known as Inter-Carrier Interference (ICI) is theoretically eliminated at the receiver's sampling instants.
+
+\subsubsection{Principles of using IFFT and FFT}
+In practical systems, using thousands of independent oscillators to generate orthogonal subcarriers is hardware-infeasible. Therefore, the Fourier transform is used as an effective alternative.
+
+At the transmitter (using IFFT): Complex data symbols are mapped onto subcarriers in the frequency domain. The inverse fast Fourier transform (IFFT) is performed to convert these symbols to the time domain before transmission. The general formula for the discrete signal $x(n)$ after IFFT is:
+\begin{equation}
+x(n) = \frac{1}{\sqrt{N}} \sum_{k=0}^{N-1} X(k) e^{j\frac{2\pi kn}{N}}
+\end{equation}
+where $n=0, 1, \dots, N-1$ is the time-domain sample index. The scaling factor $1/\sqrt{N}$ ensures energy normalization. 
+
+At the receiver (using FFT): After receiving the time-domain signal, the receiver uses the Fast Fourier Transform (FFT) to convert the signal back to the frequency domain, thereby restoring the original data symbols.
+
+Advantages: IFFT/FFT architecture significantly reduces computational complexity and makes system implementation hardware-feasible at a low cost.
+
+\subsubsection{Cyclic Prefix (CP) and ISI Mitigation}
+Cyclic Prefix (CP) is a guard interval inserted before each symbol to ensure transmission quality in multipath environments. The CP is created by copying the end portion of an OFDM symbol (after the IFFT block) and prepending it to the beginning of that same symbol.
+
+\begin{itemize}
+    \item \textbf{Inter-Symbol Interference (ISI) Mitigation:} In a multipath propagation environment, delayed replicas of the signal cause ISI between successive symbols. The CP acts as a guard interval to absorb these delayed signal components.
+    \item \textbf{Maintaining Orthogonality and Preventing ICI:} By converting the linear convolution of the transmission channel into a circular convolution, the CP helps maintain the orthogonality of the subcarriers, thereby eliminating Inter-Carrier Interference (ICI).
+    \item \textbf{Receiver Simplification:} This conversion to circular convolution allows the receiver to perform channel equalization using a simple multiplication in the frequency domain (one-tap equalization), rather than employing complex equalizers in the time domain:
+\begin{equation}
+Y(k) = H(k)X(k) + N(k)
+\end{equation}
+\end{itemize}
+
+\subsection{Quadrature Amplitude Modulation (16-QAM)}
+
+\subsubsection{Theory of 16-QAM Modulation}
+Quadrature Amplitude Modulation (QAM) is a digital modulation technique that transmits information by varying both the amplitude and phase of a carrier signal. The transmitted signal consists of two orthogonal components: In-phase component (I) and Quadrature component (Q).
+
+For a 16-QAM system, the modulation order is $M = 16$. The number of bits carried by each symbol is $k = \log_2(M) = 4$ bits/symbol. Therefore, each transmitted symbol carries 4 bits of information.
+
+The passband signal is given by:
+\begin{equation}
+s(t) = I \cos(2\pi f_c t) - Q \sin(2\pi f_c t)
+\end{equation}
+where $I$ is the In-phase component, $Q$ is the Quadrature component, and $f_c$ is the Carrier frequency.
+
+The amplitude levels used in both I and Q branches are $I, Q \in \{-3, -1, +1, +3\}$. Since each axis contains four amplitude levels, the total number of constellation points is $N = 4 \times 4 = 16$. Thus, a 16-point constellation is obtained.
+
+\subsubsection{Average Symbol Energy Normalization}
+The average energy of the in-phase component is calculated as:
+\begin{equation}
+\mathbb{E}[I^2] = \frac{(-3)^2 + (-1)^2 + (+1)^2 + (+3)^2}{4} = \frac{9+1+1+9}{4} = 5
+\end{equation}
+Similarly, $\mathbb{E}[Q^2] = 5$. Therefore, the average symbol energy becomes:
+\begin{equation}
+E_s = \mathbb{E}[I^2] + \mathbb{E}[Q^2] = 5 + 5 = 10
+\end{equation}
+
+To normalize the constellation such that $E_s = 1$, all constellation points are multiplied by $1/\sqrt{10}$. Hence, the normalized transmitted symbol is:
+\begin{equation}
+s = \frac{I + jQ}{\sqrt{10}}
+\end{equation}
+This normalization is used in the MATLAB implementation and simplifies BER and SER calculations.
+
+\subsubsection{16-QAM Constellation Diagram and Gray Bit Mapping}
+Gray coding is employed so that adjacent constellation points differ by only one bit. The first two bits determine the I component, while the last two bits determine the Q component.
+
+\begin{table}[H]
+\centering
+\caption{Constellation Coordinates and Gray Mapping}
+\vspace{0.2cm}
+\begin{tabular}{ccccc}
+\toprule
+\textbf{Q \textbackslash I} & \textbf{I = -3 (00)} & \textbf{I = -1 (01)} & \textbf{I = +1 (11)} & \textbf{I = +3 (10)} \\
+\midrule
+\textbf{Q = +3 (10)} & (-3, 3) / 0010 & (-1, 3) / 0110 & (1, 3) / 1110 & (3, 3) / 1010 \\
+\textbf{Q = +1 (11)} & (-3, 1) / 0011 & (-1, 1) / 0111 & (1, 1) / 1111 & (3, 1) / 1011 \\
+\textbf{Q = -1 (01)} & (-3,-1) / 0001 & (-1,-1) / 0101 & (1,-1) / 1101 & (3,-1) / 1001 \\
+\textbf{Q = -3 (00)} & (-3,-3) / 0000 & (-1,-3) / 0100 & (1,-3) / 1100 & (3,-3) / 1000 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+For example, input bits $0000$ correspond to $I = -3, Q = -3$, resulting in the transmitted symbol $s = \frac{-3 - j3}{\sqrt{10}}$.
+
+\subsubsection{Euclidean Distance Demodulation}
+After transmission through the Rayleigh fading channel and AWGN, the received symbol is represented as $r = I_r + jQ_r$. Let the $m$-th constellation point be $S_m = I_m + jQ_m$. The Euclidean distance between the received symbol and the constellation point is:
+\begin{equation}
+d_m = \sqrt{(I_r - I_m)^2 + (Q_r - Q_m)^2}
+\end{equation}
+
+To reduce computational complexity, the receiver usually employs the squared Euclidean distance. The Maximum Likelihood (ML) decision rule is:
+\begin{equation}
+\hat{S} = \arg \min_{S_m} \left( (I_r - I_m)^2 + (Q_r - Q_m)^2 \right)
+\end{equation}
+The constellation point with the minimum Euclidean distance is selected as the detected symbol and then converted back into the corresponding 4-bit sequence.
+
+\subsection{MIMO (Multiple Input Multiple Output) and Alamouti STBC}
+MIMO is a technique that uses multiple antennas on both the input and output sides to transmit and receive signals simultaneously on the same frequency band. The 2x2 MIMO system is fundamental to analyzing the data transmission capabilities and reliability of modern radio systems. This system uses two antennas at the transmitter ($N_T = 2$) and two antennas at the receiver ($N_R = 2$) to create independent communication channels.
+
+The mathematical model for the relationship between the transmitted and received signals in a flat-fading environment is represented by the matrix equation:
+\begin{equation}
+y = Hs + \eta
+\end{equation}
+Where:
+\begin{itemize}
+    \item $y = [y_1, y_2]^T$ is the received signal vector.
+    \item $s = [s_1, s_2]^T$ is the transmitted symbol vector.
+    \item $H$ is the 2x2 channel matrix containing complex path gains $h_{ij}$ between transmit antenna $j$ and receive antenna $i$.
+    \item $\eta$ is the additive white Gaussian noise (AWGN) vector.
+\end{itemize}
+
+\subsubsection{Alamouti STBC Encoding}
+The implemented system uses a 2x2 Alamouti Space-Time Block Code (STBC). For two consecutive symbols $s_1$ and $s_2$, the transmission matrix over two time slots is:
+\begin{equation}
+\begin{bmatrix}
+s_1 & s_2 \\
+-s_2^* & s_1^*
+\end{bmatrix}
+\end{equation}
+where $(*)$ denotes complex conjugation. This coding scheme provides transmit diversity and improves performance in fading environments.
+
+\subsubsection{Signal Model at Receiver}
+In the first time slot, Antenna 1 transmits $s_1$, Antenna 2 transmits $s_2$. The received signal is:
+\begin{equation}
+\begin{bmatrix} y_{11} \\ y_{21} \end{bmatrix} = \begin{bmatrix} h_{11} & h_{12} \\ h_{21} & h_{22} \end{bmatrix} \begin{bmatrix} s_1 \\ s_2 \end{bmatrix} + \begin{bmatrix} \eta_{11} \\ \eta_{21} \end{bmatrix}
+\end{equation}
+
+In the second time slot, Antenna 1 transmits $-s_2^*$, Antenna 2 transmits $s_1^*$. The received signal is:
+\begin{equation}
+\begin{bmatrix} y_{12} \\ y_{22} \end{bmatrix} = \begin{bmatrix} h_{11} & h_{12} \\ h_{21} & h_{22} \end{bmatrix} \begin{bmatrix} -s_2^* \\ s_1^* \end{bmatrix} + \begin{bmatrix} \eta_{12} \\ \eta_{22} \end{bmatrix}
+\end{equation}
+
+\subsubsection{Alamouti STBC Decoding}
+Assuming Perfect Channel State Information (CSI) at the receiver, the transmitted symbols are independently estimated using the Maximum Likelihood (ML) detection method by combining the signals from the two receive antennas across two time slots:
+\begin{equation}
+\hat{s}_1 = \frac{\sum_{i=1}^{2} \left( h_{i1}^* y_{i1} + h_{i2} y_{i2}^* \right)}{\sum_{i=1}^{2} \left( |h_{i1}|^2 + |h_{i2}|^2 \right)}
+\end{equation}
+\begin{equation}
+\hat{s}_2 = \frac{\sum_{i=1}^{2} \left( h_{i2}^* y_{i1} - h_{i1} y_{i2}^* \right)}{\sum_{i=1}^{2} \left( |h_{i1}|^2 + |h_{i2}|^2 \right)}
+\end{equation}
+With $\hat{s}_1$ and $\hat{s}_2$ being complex numbers in the complex plane, they are sequentially substituted to find the closest value. 
+
+\section{System Block Diagram and Operation}
+
+\subsection{System Block Diagram}
+\begin{itemize}
+    \item \textbf{Transmitter:} Input Bits $\rightarrow$ Serial to Parallel (S/P) $\rightarrow$ 16-QAM Mapper $\rightarrow$ Alamouti STBC Encoder $\rightarrow$ OFDM Modulator (IFFT + Cyclic Prefix) $\rightarrow$ Transmit Antennas.
+    \item \textbf{Channel:} Multipath Rayleigh Fading Channel + Additive White Gaussian Noise (AWGN).
+    \item \textbf{Receiver:} Receive Antennas $\rightarrow$ OFDM Demodulator (Remove CP + FFT) $\rightarrow$ Alamouti STBC Decoder $\rightarrow$ Euclidean Detector $\rightarrow$ 16-QAM Demapper $\rightarrow$ Parallel to Serial (P/S) $\rightarrow$ Output Bits.
+\end{itemize}
+
+\subsection{System Operation}
+\begin{enumerate}
+    \item \textbf{Bit Generation:} A random binary bit stream is generated.
+    \item \textbf{16-QAM Mapping:} Every four bits are mapped into one normalized 16-QAM symbol according to the Gray coding rule.
+    \item \textbf{Alamouti STBC Encoding:} The symbols are encoded using Alamouti STBC to exploit spatial diversity.
+    \item \textbf{OFDM Modulation:} The encoded symbols are transformed into the time domain using an Inverse Fast Fourier Transform (IFFT). A Cyclic Prefix (CP) is added to mitigate inter-symbol interference.
+    \item \textbf{Channel Transmission:} The OFDM signal propagates through a multipath Rayleigh fading channel and is corrupted by Additive White Gaussian Noise (AWGN).
+    \item \textbf{OFDM Demodulation:} At the receiver, the cyclic prefix is removed and a Fast Fourier Transform (FFT) is performed.
+    \item \textbf{Alamouti STBC Decoding:} The receiver combines signals from multiple antennas and estimates the transmitted symbols using Perfect CSI.
+    \item \textbf{Euclidean Distance Detection:} The Euclidean distance between the received symbol and all possible constellation points is calculated. The constellation point with the minimum distance is selected.
+    \item \textbf{16-QAM Demapping:} The detected symbol is converted back into the corresponding binary sequence using the Gray mapping rule.
+    \item \textbf{Performance Evaluation:} The recovered bit stream is compared with the transmitted bit stream to evaluate BER and SER performance.
+\end{enumerate}
+
+\section{Experimental Setup}
+The simulation framework was developed using a MATLAB-based environment to evaluate the performance of a 2x2 MIMO-OFDM system. The proposed system models the transmission of a random bit stream through a multipath Rayleigh fading channel with Additive White Gaussian Noise (AWGN).
+
+\subsection{Simulation Parameters}
+To ensure reproducibility and clarity, the main parameters used in the simulation are summarized in Table \ref{tab:params}.
+
+\begin{table}[H]
+\centering
+\caption{Simulation Parameters}
+\label{tab:params}
+\vspace{0.2cm}
+\begin{tabular}{ll}
+\toprule
+\textbf{Parameter} & \textbf{Value} \\
+\midrule
+Number of Transmit Antennas & 2 \\
+Number of Receive Antennas & 2 \\
+MIMO Scheme & Alamouti STBC \\
+FFT Size ($N$) & 64 \\
+Cyclic Prefix (CP) Length & 16 \\
+Modulation Scheme & 16-QAM \\
+Bits per Symbol & 4 \\
+Channel Type & Multipath Rayleigh Fading \\
+Number of Channel Taps & 6 \\
+Noise Model & AWGN \\
+$E_b/N_0$ Range & 0 dB to 30 dB \\
+Performance Metrics & BER and SER \\
+Channel State Information & Perfect CSI assumed at receiver \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Evaluation Scenario}
+The simulation is repeated for $E_b/N_0$ values from 0 dB to 30 dB. For each value, a large number of random bits are transmitted through the 2x2 MIMO-OFDM system. The corresponding BER and SER values are collected and plotted on a logarithmic scale. These curves are then used to evaluate how the system performance changes as the signal-to-noise ratio increases. The expected result is that both BER and SER decrease as $E_b/N_0$ increases. The use of Alamouti STBC is expected to improve system reliability by providing spatial diversity, while OFDM helps reduce the effect of multipath propagation by converting the frequency-selective channel into multiple narrowband subchannels.
+
+\section{Results and Discussion}
+The performance of the 2x2 MIMO-OFDM system utilizing Alamouti Space-Time Block Coding (STBC) and 16-QAM modulation over a Rayleigh fading channel with additive white Gaussian noise (AWGN) is evaluated by measuring the Bit Error Rate (BER) and Symbol Error Rate (SER) across various Signal-to-Noise Ratio (SNR) levels.
+
+\subsection{Simulation Results}
+The obtained simulation results illustrate the variations of BER and SER as functions of $E_b/N_0$. To provide quantitative precision, specific performance data points extracted from the simulation with a step size of 2 dB are presented in Table \ref{tab:results_detailed}.
+
+\begin{table}[H]
+\centering
+\caption{BER and SER Performance Data of the 16-QAM MIMO-OFDM System}
+\label{tab:results_detailed}
+\vspace{0.2cm}
+\begin{tabular}{ccc}
+\toprule
+\textbf{$E_b/N_0$ (dB)} & \textbf{Bit Error Rate (BER)} & \textbf{Symbol Error Rate (SER)} \\
+\midrule
+0  & 9.11283e-02 & 3.19521e-01 \\
+2  & 5.59388e-02 & 2.03760e-01 \\
+4  & 2.97852e-02 & 1.11914e-01 \\
+6  & 1.36120e-02 & 5.18828e-02 \\
+8  & 4.64779e-03 & 1.80755e-02 \\
+10 & 1.39518e-03 & 5.45573e-03 \\
+12 & 4.33594e-04 & 1.69792e-03 \\
+14 & 7.42187e-05 & 2.96875e-04 \\
+16 & 1.75781e-05 & 6.77083e-05 \\
+18 & 6.51042e-07 & 2.60417e-06 \\
+20 & 6.51042e-07 & 2.60417e-06 \\
+22 & 6.51042e-07 & 2.60417e-06 \\
+24 & 0.00000e+00 & 0.00000e+00 \\
+26 & 0.00000e+00 & 0.00000e+00 \\
+28 & 0.00000e+00 & 0.00000e+00 \\
+30 & 0.00000e+00 & 0.00000e+00 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Discussion}
+
+\subsubsection{General Performance Trend}
+The simulation results show that both BER and SER decrease as $E_b/N_0$ increases. At low $E_b/N_0$, the received signal is strongly affected by Rayleigh fading and AWGN, resulting in relatively high error rates. As $E_b/N_0$ increases, the noise effect becomes weaker, so the detection accuracy improves and the BER/SER values decrease significantly.
+
+\subsubsection{BER and SER Comparison}
+The SER values are higher than the BER values because each 16-QAM symbol carries 4 bits. A symbol error occurs when at least one bit in the symbol is detected incorrectly. However, the use of Gray coding helps reduce the number of bit errors when the received symbol is mistaken for a neighboring constellation point.
+
+\subsubsection{Diversity Gain from Alamouti STBC}
+The use of Alamouti STBC in the 2x2 MIMO system provides spatial diversity. By transmitting coded symbols through two transmit antennas and combining the received signals from two receive antennas, the system reduces the impact of deep fading. This explains the rapid decrease of BER and SER as $E_b/N_0$ increases.
+
+\subsubsection{Effect of OFDM in Multipath Channel}
+OFDM improves system performance in the multipath Rayleigh channel. The IFFT/FFT structure divides the frequency-selective channel into multiple narrowband subchannels, while the cyclic prefix helps reduce inter-symbol interference. In this simulation, the cyclic prefix length is sufficient for the 6-tap channel, so most ISI effects are mitigated.
+
+\subsubsection{Simulation Resolution Limit in the High-$E_b/N_0$ Region}
+In the high-$E_b/N_0$ region (specifically from 18 dB to 22 dB), a flattening of the BER and SER curves can be observed at exactly $6.51 \times 10^{-7}$ and $2.60 \times 10^{-6}$, respectively. As the simulation assumes perfect channel state information (CSI) at the receiver, this is not a physical error floor. Rather, it represents the \textbf{resolution limit of the Monte Carlo simulation} due to the finite number of transmitted bits. 
+
+With the configured $N_{blocks} = 3000$, the total number of transmitted bits per SNR point is $1,536,000$. At these high SNR levels, exactly \textbf{one bit error} (and correspondingly one symbol error) occurs across the entire simulation, causing the calculated error rates to bottleneck at a constant minimum measurable value ($1 / 1,536,000 \approx 6.51 \times 10^{-7}$). Once $E_b/N_0$ reaches 24 dB, the system becomes entirely error-free (0 errors), causing the BER and SER to drop to strictly zero. To accurately capture and observe a smoother waterfall curve for error probabilities below this threshold, the number of simulation blocks must be significantly increased (e.g., $N_{blocks} \ge 10^5$).
+
+\subsubsection{Overall Evaluation}
+Overall, the results confirm that the 2x2 MIMO-OFDM system using Alamouti STBC and 16-QAM achieves good performance over a multipath Rayleigh fading channel. The performance improvement mainly comes from the diversity gain of STBC and the ability of OFDM to handle multipath propagation.
+
+\section{Conclusion}
+This project presented the simulation and performance evaluation of a 2x2 MIMO-OFDM communication system using 16-QAM modulation and Alamouti Space-Time Block Coding (STBC) over a multipath Rayleigh fading channel with Additive White Gaussian Noise (AWGN). Perfect Channel State Information (CSI) was assumed at the receiver to perform Maximum Likelihood detection.
+
+The simulation results demonstrated that both Bit Error Rate (BER) and Symbol Error Rate (SER) decrease as the Signal-to-Noise Ratio (SNR) increases. The implemented architecture improves spectral efficiency, provides spatial diversity gain, and enhances communication reliability in wireless fading environments. The use of OFDM effectively handles multipath propagation by eliminating inter-symbol interference through the use of a cyclic prefix. Overall, the project provided practical insights into the behavior of modern wireless communication systems.
+
+\section{References}
+\begin{enumerate}
+    \item J. G. Proakis, \textit{Digital Communications}, 5th ed., McGraw-Hill, 2008.
+    \item S. M. Alamouti, ``A simple transmit diversity technique for wireless communications,'' in \textit{IEEE Journal on Selected Areas in Communications}, vol. 16, no. 8, pp. 1451-1458, Oct. 1998.
+    \item T. S. Rappaport, \textit{Wireless Communications: Principles and Practice}, 2nd ed., Prentice Hall, 2002.
+\end{enumerate}
+
+\end{document}
