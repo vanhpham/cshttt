@@ -10,6 +10,14 @@
 \usepackage{booktabs}
 \usepackage{float}
 \usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue!70!black,
+    citecolor=blue!70!black,
+    filecolor=blue!70!black,
+    urlcolor=blue!70!black,
+    bookmarksnumbered=true
+}
 \usepackage{cite}
 \usepackage{setspace}
 \usepackage{tikz}
@@ -348,19 +356,19 @@ To exploit diversity gain without needing multiple RF chains or channel estimati
 \node [box, fill=orange!15, draw=orange!70!black, right=1.2cm of in] (enc) {\textbf{Alamouti STBC}\\\textbf{Encoder}};
 
 % Right: Transmit Antennas
-\node [ant, right=1.2cm of enc, yshift=1cm] (tx1) {};
-\node [right=0.1cm of tx1, font=\footnotesize\bfseries] {Antenna 1 ($Tx_1$)};
+\node [ant, right=1.2cm of enc, yshift=1.3cm] (tx1) {};
+\node [above=0.1cm of tx1, font=\footnotesize\bfseries] {Antenna 1 ($Tx_1$)};
 
-\node [ant, right=1.2cm of enc, yshift=-1cm] (tx2) {};
-\node [right=0.1cm of tx2, font=\footnotesize\bfseries] {Antenna 2 ($Tx_2$)};
+\node [ant, right=1.2cm of enc, yshift=-1.3cm] (tx2) {};
+\node [below=0.1cm of tx2, font=\footnotesize\bfseries] {Antenna 2 ($Tx_2$)};
 
 % Connections Input -> Encoder -> Antennas
 \path [arrow] (in) -- (enc);
 \path [arrow] (enc.east) -- +(0.4,0) |- (tx1.west);
 \path [arrow] (enc.east) -- +(0.4,0) |- (tx2.west);
 
-% Draw paths to receiver (placed 5.5cm to the right of tx antennas)
-\node [ant, shape border rotate=270, right=5.5cm of tx1, yshift=-1.0cm] (rx1) {};
+% Draw paths to receiver (placed 5.5cm to the right of tx antennas, centered at y=0)
+\node [ant, shape border rotate=270, right=5.5cm of tx1, yshift=-1.3cm] (rx1) {};
 \node [right=0.2cm of rx1, font=\footnotesize\bfseries] {Receiver ($Rx_i$)};
 
 % Signal arrows representing channel paths h_i1 and h_i2
@@ -368,12 +376,12 @@ To exploit diversity gain without needing multiple RF chains or channel estimati
 \draw [arrow, dashed, blue!60!black] (tx2.east) -- node[below, sloped, font=\tiny\bfseries]{$h_{i2}$ (Path 2)} (rx1.west);
 
 % Table showing time slot transmissions (placed cleanly below to avoid overlap)
-\node [draw, black!40, fill=gray!2, rounded corners=2pt, below=1.8cm of enc, xshift=2.0cm, text width=16em, font=\scriptsize] (tablebox) {
+\node [draw=black, thick, fill=white, rounded corners=2pt, below=1.8cm of enc, xshift=2.0cm, text width=16em, font=\scriptsize] (tablebox) {
     \textbf{ALAMOUTI ENCODING SCHEME} \\[0.4em]
     \begin{tabular}{rcc}
     \toprule
     & \textbf{Time Slot 1} & \textbf{Time Slot 2} \\
-    \midruleD
+    \midrule
     \textbf{Antenna 1 ($Tx_1$)} & $s_1$ & $-s_2^*$ \\
     \textbf{Antenna 2 ($Tx_2$)} & $s_2$ & $s_1^*$ \\
     \bottomrule
