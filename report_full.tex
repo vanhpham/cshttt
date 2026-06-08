@@ -1,8 +1,10 @@
-\documentclass[12pt,a4paper]{article}
+\documentclass[a4paper]{article}
 \usepackage[utf8]{inputenc}
-\usepackage{lmodern}
 \usepackage[T1]{fontenc}
-\usepackage{amsmath, amssymb}
+\usepackage[fontsize=13pt]{scrextend}
+\usepackage{newtxtext}
+\usepackage{newtxmath}
+\usepackage{amsmath}
 \usepackage{graphicx}
 \usepackage{geometry}
 \usepackage{booktabs}
@@ -10,6 +12,8 @@
 \usepackage{hyperref}
 \usepackage{cite}
 \usepackage{setspace}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows, positioning, fit, calc}
 
 \geometry{top=2.5cm, bottom=2.5cm, left=3cm, right=2cm}
 \setstretch{1.25}
@@ -90,15 +94,84 @@ At the receiver (using FFT): After receiving the time-domain signal, the receive
 Advantages: IFFT/FFT architecture significantly reduces computational complexity and makes system implementation hardware-feasible at a low cost.
 
 \subsubsection{Cyclic Prefix (CP) and ISI Mitigation}
-Cyclic Prefix (CP) is a guard interval inserted before each symbol to ensure transmission quality in multipath environments. The CP is created by copying the end portion of an OFDM symbol (after the IFFT block) and prepending it to the beginning of that same symbol.
+Cyclic Prefix (CP) is a guard interval inserted before each symbol to ensure transmission quality in multipath environments. The CP is created by copying the last $N_{cp}$ samples of an OFDM symbol (after the IFFT block) and prepending them to the beginning of that same symbol.
 
-\begin{itemize}
-    \item \textbf{Inter-Symbol Interference (ISI) Mitigation:} In a multipath propagation environment, delayed replicas of the signal cause ISI between successive symbols. The CP acts as a guard interval to absorb these delayed signal components.
-    \item \textbf{Maintaining Orthogonality and Preventing ICI:} By converting the linear convolution of the transmission channel into a circular convolution, the CP helps maintain the orthogonality of the subcarriers, thereby eliminating Inter-Carrier Interference (ICI).
-    \item \textbf{Receiver Simplification:} This conversion to circular convolution allows the receiver to perform channel equalization using a simple multiplication in the frequency domain (one-tap equalization), rather than employing complex equalizers in the time domain:
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    scale=0.9,
+    node distance=1.5cm,
+    arrow/.style={draw, ->, >=stealth, thick, red!70!black}
+]
+
+% First Row: Original OFDM Symbol
+% Part A: First part of the symbol
+\node[draw=blue!70!black, fill=blue!10, thick, minimum width=5.5cm, minimum height=1.2cm, align=center, font=\footnotesize] (parta) {OFDM Symbol Main Part\\(First $N_{fft} - N_{cp}$ samples)};
+% Part B: Last part of the symbol (to be copied)
+\node[draw=red!70!black, fill=red!10, dashed, thick, minimum width=2.0cm, minimum height=1.2cm, align=center, font=\tiny\bfseries, right=0cm of parta] (partb) {Last $N_{cp}$\\samples};
+
+\node[above=0.2cm of parta, xshift=1cm, font=\footnotesize\bfseries\color{blue!70!black}] {Original OFDM Symbol (Length $N_{fft} = 64$ samples)};
+
+% Second Row: Transmitted Symbol with CP (placed 2.2cm below)
+\node[draw=blue!70!black, fill=blue!15, thick, minimum width=5.5cm, minimum height=1.2cm, align=center, font=\footnotesize, below=2.2cm of parta] (parta2) {OFDM Symbol Main Part};
+
+\node[draw=red!70!black, fill=red!15, thick, minimum width=2.0cm, minimum height=1.2cm, align=center, font=\tiny\bfseries, left=0cm of parta2] (cpnode) {Cyclic Prefix\\(Length $N_{cp} = 16$)};
+
+\node[draw=blue!70!black, fill=blue!15, thick, minimum width=2.0cm, minimum height=1.2cm, align=center, font=\tiny\bfseries, right=0cm of parta2] (partb2) {Last $N_{cp}$\\samples};
+
+% Connection arrow (Copy & Prepend) - Orthogonal route with clean label placement
+\coordinate (start) at (partb.south);
+\coordinate (mid1) at ($(partb.south) + (0,-0.5cm)$);
+\coordinate (mid2) at ($(cpnode.north) + (0,0.5cm)$);
+\coordinate (end) at (cpnode.north);
+\draw [arrow] (start) -- (mid1) -- node[above, font=\tiny\bfseries\color{red!70!black}] {Copy \& Prepend} (mid2) -- (end);
+
+% Dimension ticks under the second row
+\coordinate (d1) at ($(cpnode.south west) + (0,-0.6cm)$);
+\coordinate (d2) at ($(cpnode.south east) + (0,-0.6cm)$);
+\coordinate (d3) at ($(partb2.south east) + (0,-0.6cm)$);
+
+\draw[draw, <->, >=stealth, thin, black!60] (d1) -- node[below, font=\tiny\bfseries]{$T_{cp}$} (d2);
+\draw[draw, <->, >=stealth, thin, black!60] (d2) -- node[below, font=\tiny\bfseries]{$T_{sub} = N_{fft} T_s$} (d3);
+
+\coordinate (d4) at ($(cpnode.south west) + (0,-1.2cm)$);
+\coordinate (d5) at ($(partb2.south east) + (0,-1.2cm)$);
+\draw[draw, <->, >=stealth, thin, black!60] (d4) -- node[below, font=\tiny\bfseries]{Total Symbol Duration $T_{total} = (N_{fft} + N_{cp}) T_s$} (d5);
+
+% Title for second row placed below the dimension lines
+\node[below=1.7cm of parta2, font=\footnotesize\bfseries\color{blue!70!black}] {Transmitted OFDM Symbol with CP (Length $N_{fft} + N_{cp} = 80$ samples)};
+
+\end{tikzpicture}
+\caption{Cyclic Prefix (CP) Insertion Scheme in OFDM Symbol}
+\label{fig:ofdm_cp}
+\end{figure}
+
+Specifically, let the time-domain OFDM symbol after IFFT be represented as:
 \begin{equation}
-Y(k) = H(k)X(k) + N(k)
+\mathbf{x} = [x(0), x(1), \dots, x(N-1)]
 \end{equation}
+The cyclic prefix consists of the last $N_{cp}$ samples: $[x(N-N_{cp}), \dots, x(N-1)]$. The transmitted symbol vector with CP becomes:
+\begin{equation}
+\mathbf{x}_{cp} = [x(N-N_{cp}), \dots, x(N-1), x(0), x(1), \dots, x(N-1)]
+\end{equation}
+
+The role of the Cyclic Prefix can be detailed as follows:
+\begin{itemize}
+    \item \textbf{Inter-Symbol Interference (ISI) Mitigation:} In a multipath propagation environment with a maximum channel delay spread of $L$ taps, delayed replicas of the previous OFDM symbol overlap with the current symbol, causing ISI. If the CP length is chosen such that $N_{cp} \ge L - 1$, the delayed components of the previous symbol fall entirely within the CP guard interval and are discarded at the receiver, completely mitigating ISI.
+    \item \textbf{Maintaining Orthogonality and Preventing ICI:} Without a CP, the propagation of the signal through a multipath channel corresponds to a linear convolution between the transmitted signal and the channel impulse response. This linear convolution breaks the orthogonality between subcarriers, leading to Inter-Carrier Interference (ICI). By prepending the CP, the linear convolution of the channel over the useful part of the symbol ($n = 0, \dots, N-1$) is mathematically transformed into a circular convolution:
+    \begin{equation}
+    y(n) = x(n) \circledast h(n) + \eta(n), \quad 0 \le n \le N-1
+    \end{equation}
+    where $\circledast$ denotes circular convolution, $h(n)$ is the channel impulse response, and $\eta(n)$ is the noise.
+    \item \textbf{Receiver Simplification (One-Tap Equalization):} Due to the Discrete Fourier Transform (DFT) properties, circular convolution in the time domain is equivalent to point-wise multiplication in the frequency domain. Therefore, after taking the FFT at the receiver, the received signal at subcarrier $k$ is given by:
+    \begin{equation}
+    Y(k) = H(k)X(k) + N(k)
+    \end{equation}
+    where $H(k) = \text{FFT}(h)$ is the channel frequency response, and $N(k)$ is the frequency-domain noise. This allows the receiver to perform equalization using a simple division (one-tap equalization) per subcarrier:
+    \begin{equation}
+    \hat{X}(k) = \frac{Y(k)}{H(k)}
+    \end{equation}
+    which avoids the need for computationally heavy time-domain equalizers.
 \end{itemize}
 
 \subsection{Quadrature Amplitude Modulation (16-QAM)}
@@ -151,7 +224,61 @@ Gray coding is employed so that adjacent constellation points differ by only one
 \end{tabular}
 \end{table}
 
-For example, input bits $0000$ correspond to $I = -3, Q = -3$, resulting in the transmitted symbol $s = \frac{-3 - j3}{\sqrt{10}}$.
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.2]
+% Grid lines
+\draw[step=1cm, gray!30, very thin] (-3.9,-3.9) grid (3.9,3.9);
+
+% Axes
+\draw[thick,->,>=stealth] (-4.2,0) -- (4.2,0) node[right, font=\small\bfseries] {In-phase ($I$)};
+\draw[thick,->,>=stealth] (0,-4.2) -- (0,4.2) node[above, font=\small\bfseries] {Quadrature ($Q$)};
+
+% Tick labels on I axis
+\foreach \x/\label in {-3/-3\sqrt{E_s}, -1/-1\sqrt{E_s}, 1/+1\sqrt{E_s}, 3/+3\sqrt{E_s}} {
+    \draw (\x, 2pt) -- (\x, -2pt);
+}
+\node[below left, font=\tiny] at (-3,0) {$-3A$};
+\node[below left, font=\tiny] at (-1,0) {$-1A$};
+\node[below right, font=\tiny] at (1,0) {$+1A$};
+\node[below right, font=\tiny] at (3,0) {$+3A$};
+
+% Tick labels on Q axis
+\foreach \y/\label in {-3/-3\sqrt{E_s}, -1/-1\sqrt{E_s}, 1/+1\sqrt{E_s}, 3/+3\sqrt{E_s}} {
+    \draw (2pt, \y) -- (-2pt, \y);
+}
+\node[above left, font=\tiny] at (0,-3) {$-3A$};
+\node[above left, font=\tiny] at (0,-1) {$-1A$};
+\node[above left, font=\tiny] at (0,1) {$+1A$};
+\node[above left, font=\tiny] at (0,3) {$+3A$};
+
+% Constellation points
+\foreach \x/\bi in {-3/00, -1/01, 1/11, 3/10} {
+    \foreach \y/\bq in {-3/00, -1/01, 1/11, 3/10} {
+        \filldraw[blue!70!black] (\x,\y) circle (2.5pt);
+        \node[above, font=\scriptsize\bfseries, yshift=2pt] at (\x,\y) {\bi\bq};
+        \node[below, font=\tiny, yshift=-2pt, text=gray!60!black] at (\x,\y) {(\x,\y)};
+    }
+}
+
+% Annotation
+\node[draw, fill=yellow!10, align=left, font=\tiny, rounded corners=2pt] at (-2.0,2.0) {
+    \textbf{Normalization Factor:} \\
+    $A = \frac{1}{\sqrt{10}}$ \\
+    Average Energy $E_s = 1$
+};
+
+\end{tikzpicture}
+\caption{16-QAM Constellation Diagram with Gray Mapping}
+\label{fig:qam16_constellation}
+\end{figure}
+
+To clarify the mapping rule, several examples are presented:
+\begin{itemize}
+    \item \textbf{Example 1 (Input bits $0000$):} The first two bits $00$ correspond to $I = -3$, and the last two bits $00$ correspond to $Q = -3$. The resulting complex symbol is $s = \frac{-3 - j3}{\sqrt{10}}$.
+    \item \textbf{Example 2 (Input bits $1111$):} The first two bits $11$ correspond to $I = +1$, and the last two bits $11$ correspond to $Q = +1$. The resulting complex symbol is $s = \frac{1 + j1}{\sqrt{10}}$.
+    \item \textbf{Example 3 (Input bits $1010$):} The first two bits $10$ correspond to $I = +3$, and the last two bits $10$ correspond to $Q = +3$. The resulting complex symbol is $s = \frac{3 + j3}{\sqrt{10}}$.
+\end{itemize}
 
 \subsubsection{Euclidean Distance Demodulation}
 After transmission through the Rayleigh fading channel and AWGN, the received symbol is represented as $r = I_r + jQ_r$. Let the $m$-th constellation point be $S_m = I_m + jQ_m$. The Euclidean distance between the received symbol and the constellation point is:
@@ -166,21 +293,98 @@ To reduce computational complexity, the receiver usually employs the squared Euc
 The constellation point with the minimum Euclidean distance is selected as the detected symbol and then converted back into the corresponding 4-bit sequence.
 
 \subsection{MIMO (Multiple Input Multiple Output) and Alamouti STBC}
-MIMO is a technique that uses multiple antennas on both the input and output sides to transmit and receive signals simultaneously on the same frequency band. The 2x2 MIMO system is fundamental to analyzing the data transmission capabilities and reliability of modern radio systems. This system uses two antennas at the transmitter ($N_T = 2$) and two antennas at the receiver ($N_R = 2$) to create independent communication channels.
-
-The mathematical model for the relationship between the transmitted and received signals in a flat-fading environment is represented by the matrix equation:
-\begin{equation}
-y = Hs + \eta
-\end{equation}
-Where:
+MIMO is a key technique in modern wireless communication systems that utilizes multiple antennas at both the transmitter and receiver. By transmitting and receiving multiple signals simultaneously over the same frequency band, MIMO systems exploit the spatial dimension to achieve:
 \begin{itemize}
-    \item $y = [y_1, y_2]^T$ is the received signal vector.
-    \item $s = [s_1, s_2]^T$ is the transmitted symbol vector.
-    \item $H$ is the 2x2 channel matrix containing complex path gains $h_{ij}$ between transmit antenna $j$ and receive antenna $i$.
-    \item $\eta$ is the additive white Gaussian noise (AWGN) vector.
+    \item \textbf{Spatial Multiplexing Gain:} Transmitting independent data streams from different antennas to linearly scale the system capacity with the number of antennas.
+    \item \textbf{Diversity Gain:} Transmitting the same or related signals through multiple independent fading paths to improve transmission reliability and combat channel fading.
 \end{itemize}
 
+A $2 \times 2$ MIMO system consists of $N_T = 2$ transmit antennas and $N_R = 2$ receive antennas, creating four spatial communication links. In a flat-fading or subcarrier-level frequency-domain representation, the received signal vector $\mathbf{y} = [y_1, y_2]^T$ is modeled as:
+\begin{equation}
+\mathbf{y} = \mathbf{H}\mathbf{s} + \boldsymbol{\eta}
+\end{equation}
+where $\mathbf{s} = [s_1, s_2]^T$ is the transmitted symbol vector, $\boldsymbol{\eta} = [\eta_1, \eta_2]^T$ is the additive white Gaussian noise (AWGN) vector, and $\mathbf{H}$ is the $2 \times 2$ channel matrix:
+\begin{equation}
+\mathbf{H} = \begin{bmatrix}
+h_{11} & h_{12} \\
+h_{21} & h_{22}
+\end{bmatrix}
+\end{equation}
+Here, $h_{ij}$ represents the complex channel path gain from transmit antenna $j$ to receive antenna $i$.
+
+\subsubsection{MIMO-OFDM Integration}
+When MIMO is combined with OFDM, the wideband frequency-selective MIMO channel is divided into $N_{fft}$ parallel, orthogonal narrowband flat-fading MIMO subchannels. For each subcarrier $k \in \{0, 1, \dots, N_{fft}-1\}$, the relationship between the transmitted symbol vector $\mathbf{s}(k) = [s_1(k), s_2(k)]^T$ and the received vector $\mathbf{y}(k) = [y_1(k), y_2(k)]^T$ is given by:
+\begin{equation}
+\mathbf{y}(k) = \mathbf{H}(k)\mathbf{s}(k) + \boldsymbol{\eta}(k)
+\end{equation}
+where $\mathbf{H}(k)$ is the estimated channel response matrix at subcarrier $k$, containing the channel gains $h_{ij}(k)$ between transmit antenna $j$ and receive antenna $i$ at frequency subcarrier $k$.
+
+\subsubsection{Practical Transmitter Components: Channel Coding and Interleaving}
+In practical MIMO-OFDM transmitters (such as in IEEE 802.11 or LTE), the input binary stream is processed through several additional stages before being mapped into symbols:
+\begin{itemize}
+    \item \textbf{Channel Encoder:} Adds redundant bits (using convolutional codes, Turbo codes, or LDPC codes) to enable forward error correction (FEC) at the receiver.
+    \item \textbf{Interleaver (IL):} Permutes the coded bits in a pseudo-random order. This is crucial in OFDM systems since deep fading on certain subcarriers can corrupt consecutive bits. Interleaving spreads these errors across the entire block, transforming burst errors into random, single-bit errors that the channel decoder can easily correct.
+\end{itemize}
+While these blocks are essential for commercial systems to achieve the required Quality of Service (QoS), they are omitted in this simulation to focus strictly on evaluating the raw physical layer performance of the 16-QAM MIMO-OFDM scheme with Alamouti STBC under raw fading channels.
+
 \subsubsection{Alamouti STBC Encoding}
+To exploit diversity gain without needing multiple RF chains or channel estimation at the transmitter, the Alamouti Space-Time Block Coding (STBC) scheme is employed. The code operates across two consecutive OFDM symbols (or time slots) $t=1, 2$.
+
+\begin{figure}[H]
+\centering
+\resizebox{0.95\textwidth}{!}{%
+\begin{tikzpicture}[
+    scale=0.9,
+    node distance=2.0cm,
+    ant/.style={draw, thick, shape=isosceles triangle, shape border rotate=90, minimum height=0.5cm, minimum width=0.4cm, fill=black!10},
+    box/.style={draw, thick, rectangle, minimum width=6em, minimum height=3em, align=center, font=\footnotesize},
+    arrow/.style={draw, ->, >=stealth, thick, black!70}
+]
+
+% Left: Input symbols
+\node [box, fill=gray!5] (in) {Input Symbols\\$s_1, s_2$};
+
+% Middle: Alamouti Encoder
+\node [box, fill=orange!15, draw=orange!70!black, right=1.2cm of in] (enc) {\textbf{Alamouti STBC}\\\textbf{Encoder}};
+
+% Right: Transmit Antennas
+\node [ant, right=1.2cm of enc, yshift=1cm] (tx1) {};
+\node [right=0.1cm of tx1, font=\footnotesize\bfseries] {Antenna 1 ($Tx_1$)};
+
+\node [ant, right=1.2cm of enc, yshift=-1cm] (tx2) {};
+\node [right=0.1cm of tx2, font=\footnotesize\bfseries] {Antenna 2 ($Tx_2$)};
+
+% Connections Input -> Encoder -> Antennas
+\path [arrow] (in) -- (enc);
+\path [arrow] (enc.east) -- +(0.4,0) |- (tx1.west);
+\path [arrow] (enc.east) -- +(0.4,0) |- (tx2.west);
+
+% Draw paths to receiver (placed 5.5cm to the right of tx antennas)
+\node [ant, shape border rotate=270, right=5.5cm of tx1, yshift=-1.0cm] (rx1) {};
+\node [right=0.2cm of rx1, font=\footnotesize\bfseries] {Receiver ($Rx_i$)};
+
+% Signal arrows representing channel paths h_i1 and h_i2
+\draw [arrow, dashed, green!60!black] (tx1.east) -- node[above, sloped, font=\tiny\bfseries]{$h_{i1}$ (Path 1)} (rx1.west);
+\draw [arrow, dashed, blue!60!black] (tx2.east) -- node[below, sloped, font=\tiny\bfseries]{$h_{i2}$ (Path 2)} (rx1.west);
+
+% Table showing time slot transmissions (placed cleanly below to avoid overlap)
+\node [draw, black!40, fill=gray!2, rounded corners=2pt, below=1.8cm of enc, xshift=2.0cm, text width=16em, font=\scriptsize] (tablebox) {
+    \textbf{ALAMOUTI ENCODING SCHEME} \\[0.4em]
+    \begin{tabular}{rcc}
+    \toprule
+    & \textbf{Time Slot 1} & \textbf{Time Slot 2} \\
+    \midruleD
+    \textbf{Antenna 1 ($Tx_1$)} & $s_1$ & $-s_2^*$ \\
+    \textbf{Antenna 2 ($Tx_2$)} & $s_2$ & $s_1^*$ \\
+    \bottomrule
+    \end{tabular}
+};
+
+\end{tikzpicture}%
+}
+\caption{Alamouti Space-Time Block Coding Transmission Scheme}
+\label{fig:alamouti_scheme}
+\end{figure}
 The implemented system uses a 2x2 Alamouti Space-Time Block Code (STBC). For two consecutive symbols $s_1$ and $s_2$, the transmission matrix over two time slots is:
 \begin{equation}
 \begin{bmatrix}
@@ -191,33 +395,188 @@ s_1 & s_2 \\
 where $(*)$ denotes complex conjugation. This coding scheme provides transmit diversity and improves performance in fading environments.
 
 \subsubsection{Signal Model at Receiver}
-In the first time slot, Antenna 1 transmits $s_1$, Antenna 2 transmits $s_2$. The received signal is:
+In the first time slot, Antenna 1 transmits $s_1(k)$ and Antenna 2 transmits $s_2(k)$ on subcarrier $k$. The received signals at receive antenna $i \in \{1, 2\}$ in time slot 1 are:
 \begin{equation}
-\begin{bmatrix} y_{11} \\ y_{21} \end{bmatrix} = \begin{bmatrix} h_{11} & h_{12} \\ h_{21} & h_{22} \end{bmatrix} \begin{bmatrix} s_1 \\ s_2 \end{bmatrix} + \begin{bmatrix} \eta_{11} \\ \eta_{21} \end{bmatrix}
+y_{i1}(k) = h_{i1}(k) s_1(k) + h_{i2}(k) s_2(k) + \eta_{i1}(k)
+\end{equation}
+which can be written in matrix form as:
+\begin{equation}
+\begin{bmatrix} y_{11}(k) \\ y_{21}(k) \end{bmatrix} = \begin{bmatrix} h_{11}(k) & h_{12}(k) \\ h_{21}(k) & h_{22}(k) \end{bmatrix} \begin{bmatrix} s_1(k) \\ s_2(k) \end{bmatrix} + \begin{bmatrix} \eta_{11}(k) \\ \eta_{21}(k) \end{bmatrix}
 \end{equation}
 
-In the second time slot, Antenna 1 transmits $-s_2^*$, Antenna 2 transmits $s_1^*$. The received signal is:
+In the second time slot, Antenna 1 transmits $-s_2^*(k)$ and Antenna 2 transmits $s_1^*(k)$ on subcarrier $k$. The received signals at receive antenna $i \in \{1, 2\}$ in time slot 2 are:
 \begin{equation}
-\begin{bmatrix} y_{12} \\ y_{22} \end{bmatrix} = \begin{bmatrix} h_{11} & h_{12} \\ h_{21} & h_{22} \end{bmatrix} \begin{bmatrix} -s_2^* \\ s_1^* \end{bmatrix} + \begin{bmatrix} \eta_{12} \\ \eta_{22} \end{bmatrix}
+y_{i2}(k) = -h_{i1}(k) s_2^*(k) + h_{i2}(k) s_1^*(k) + \eta_{i2}(k)
+\end{equation}
+which in matrix form is:
+\begin{equation}
+\begin{bmatrix} y_{12}(k) \\ y_{22}(k) \end{bmatrix} = \begin{bmatrix} h_{11}(k) & h_{12}(k) \\ h_{21}(k) & h_{22}(k) \end{bmatrix} \begin{bmatrix} -s_2^*(k) \\ s_1^*(k) \end{bmatrix} + \begin{bmatrix} \eta_{12}(k) \\ \eta_{22}(k) \end{bmatrix}
 \end{equation}
 
 \subsubsection{Alamouti STBC Decoding}
-Assuming Perfect Channel State Information (CSI) at the receiver, the transmitted symbols are independently estimated using the Maximum Likelihood (ML) detection method by combining the signals from the two receive antennas across two time slots:
+Assuming Perfect Channel State Information (CSI) at the receiver (meaning the gains $h_{ij}(k)$ are known), the transmitted symbols $s_1(k)$ and $s_2(k)$ are estimated by combining the received signals across both receive antennas and both time slots. The combination equations are:
 \begin{equation}
-\hat{s}_1 = \frac{\sum_{i=1}^{2} \left( h_{i1}^* y_{i1} + h_{i2} y_{i2}^* \right)}{\sum_{i=1}^{2} \left( |h_{i1}|^2 + |h_{i2}|^2 \right)}
+\tilde{s}_1(k) = \sum_{i=1}^{2} \left( h_{i1}^*(k) y_{i1}(k) + h_{i2}(k) y_{i2}^*(k) \right)
 \end{equation}
 \begin{equation}
-\hat{s}_2 = \frac{\sum_{i=1}^{2} \left( h_{i2}^* y_{i1} - h_{i1} y_{i2}^* \right)}{\sum_{i=1}^{2} \left( |h_{i1}|^2 + |h_{i2}|^2 \right)}
+\tilde{s}_2(k) = \sum_{i=1}^{2} \left( h_{i2}^*(k) y_{i1}(k) - h_{i1}(k) y_{i2}^*(k) \right)
 \end{equation}
-With $\hat{s}_1$ and $\hat{s}_2$ being complex numbers in the complex plane, they are sequentially substituted to find the closest value. 
+
+To compute the final estimates for Maximum Likelihood (ML) detection, these combined signals are normalized by the total channel power of the active links:
+\begin{equation}
+\hat{s}_1(k) = \frac{\tilde{s}_1(k)}{\sum_{i=1}^{2} \left( |h_{i1}(k)|^2 + |h_{i2}(k)|^2 \right)}
+\end{equation}
+\begin{equation}
+\hat{s}_2(k) = \frac{\tilde{s}_2(k)}{\sum_{i=1}^{2} \left( |h_{i1}(k)|^2 + |h_{i2}(k)|^2 \right)}
+\end{equation}
+These decision variables $\hat{s}_1(k)$ and $\hat{s}_2(k)$ are then passed to the Euclidean distance detector to find the closest constellation point in the complex plane. 
 
 \section{System Block Diagram and Operation}
 
 \subsection{System Block Diagram}
+To understand the interaction between the components, the complete block diagram of the simulated $2 \times 2$ MIMO-OFDM communication system is shown below.
+
+\begin{figure}[H]
+\centering
+\resizebox{0.95\textwidth}{!}{%
+\begin{tikzpicture}[
+    % Block Styles
+    blockmod/.style={draw, rectangle, minimum height=3.0em, minimum width=9.5em, fill=green!10, draw=green!60!black, rounded corners=2pt, font=\footnotesize\bfseries, align=center},
+    blocksp/.style={draw, rectangle, minimum height=3.0em, minimum width=9.5em, fill=violet!10, draw=violet!60!black, rounded corners=2pt, font=\footnotesize\bfseries, align=center},
+    blockstbc/.style={draw, rectangle, minimum height=3.0em, minimum width=9.5em, fill=orange!10, draw=orange!60!black, rounded corners=2pt, font=\footnotesize\bfseries, align=center},
+    blockofdm/.style={draw, rectangle, minimum height=3.0em, minimum width=9.5em, fill=gray!10, draw=gray!60!black, rounded corners=2pt, font=\footnotesize\bfseries, align=center},
+    blockcp/.style={draw, rectangle, minimum height=3.0em, minimum width=9.5em, fill=red!10, draw=red!60!black, rounded corners=2pt, font=\footnotesize\bfseries, align=center},
+    blockchan/.style={draw, rectangle, minimum height=3.0em, minimum width=11.0em, fill=cyan!10, draw=cyan!60!black, rounded corners=2pt, font=\footnotesize\bfseries, align=center},
+    % Group Container Styles
+    grouptx/.style={draw, blue!70!black, dashed, thick, rounded corners=4pt, inner sep=1.0em},
+    groupchan/.style={draw, green!60!black, dashed, thick, rounded corners=4pt, inner sep=1.0em},
+    grouprx/.style={draw, purple!70!black, dashed, thick, rounded corners=4pt, inner sep=1.0em},
+    % Connectors & Labels
+    arrow/.style={draw, ->, >=stealth, thick, black!70},
+    textlbl/.style={font=\footnotesize\bfseries, align=center}
+]
+
+% ==================== LEFT COLUMN: TRANSMITTER ====================
+\node [textlbl] (inlabel) {Input Bit Stream};
+\node [blockmod, below=1.0cm of inlabel] (tx1) {1. 16-QAM Mapper\\(k=4 bits/sym)};
+\node [blocksp, below=1.0cm of tx1] (tx2) {2. Serial-to-Parallel\\Converter (S/P)};
+\node [blockstbc, below=1.0cm of tx2] (tx3) {3. Alamouti STBC\\Encoder};
+\node [blockofdm, below=1.0cm of tx3] (tx4) {4. IFFT\\($N_{fft}$-point)};
+\node [blockcp, below=1.0cm of tx4] (tx5) {5. Cyclic Prefix\\Insertion (Length $N_{cp}$)};
+\node [blocksp, below=1.0cm of tx5] (tx6) {6. Parallel-to-Serial\\Converter (P/S)};
+\node [textlbl, below=1.0cm of tx6] (txoutlabel) {Transmit Signals\\(Time Domain)};
+
+% Transmitter Group Box
+\node [grouptx, fit=(tx1) (tx6), label={[blue!70!black]above:\textbf{TRANSMITTER}}] (txgroup) {};
+
+% ==================== BOTTOM ROW: CHANNEL ====================
+\node [blockchan, right=1.6cm of txoutlabel] (ch1) {7. 2x2 MIMO\\Rayleigh Channel $\mathbf{H}(k)$};
+\node [blockchan, right=1.6cm of ch1] (ch2) {8. Additive White\\Gaussian Noise $\boldsymbol{\eta}(k)$};
+
+% Channel Group Box
+\node [groupchan, fit=(ch1) (ch2), label={[green!60!black]above:\textbf{CHANNEL}}] (changroup) {};
+
+% ==================== RIGHT COLUMN: RECEIVER ====================
+\node [textlbl, right=1.6cm of ch2] (rxinlabel) {Received Signals\\(Time Domain)};
+\node [blocksp, above=0.8cm of rxinlabel] (rx1) {9. Serial-to-Parallel\\Converter (S/P)};
+\node [blockcp, above=0.8cm of rx1] (rx2) {10. CP Removal};
+\node [blockofdm, above=0.8cm of rx2] (rx3) {11. FFT\\($N_{fft}$-point)};
+\node [blockstbc, above=0.8cm of rx3] (rx4) {12. Alamouti STBC\\Decoder};
+\node [blockchan, above=0.8cm of rx4] (rx5) {13. Euclidean Detector\\(ML Decision)};
+\node [blockmod, above=0.8cm of rx5] (rx6) {14. 16-QAM Demapper};
+\node [blocksp, above=0.8cm of rx6] (rx7) {15. Parallel-to-Serial\\Converter (P/S)};
+\node [textlbl, above=1.2cm of rx7] (rxoutlabel) {Recovered Bit Stream};
+
+% Receiver Group Box
+\node [grouprx, fit=(rx1) (rx7), label={[purple!70!black]above:\textbf{RECEIVER}}] (rxgroup) {};
+
+% ==================== CONNECTIONS ====================
+% Transmitter (Flow Down)
+\path [arrow] (inlabel) -- (tx1);
+\path [arrow] (tx1) -- (tx2);
+\path [arrow] (tx2) -- node[left, font=\tiny\bfseries]{$N_{fft}$ subcarriers} (tx3);
+\path [arrow] (tx3) -- (tx4);
+\path [arrow] (tx4) -- (tx5);
+\path [arrow] (tx5) -- (tx6);
+\path [arrow] (tx6) -- (txoutlabel);
+
+% Channel (Flow Right)
+\path [arrow] (txoutlabel) -- (ch1);
+\path [arrow] (ch1) -- (ch2);
+\path [arrow] (ch2) -- (rxinlabel);
+
+% Receiver (Flow Up)
+\path [arrow] (rxinlabel) -- (rx1);
+\path [arrow] (rx1) -- (rx2);
+\path [arrow] (rx2) -- (rx3);
+\path [arrow] (rx3) -- (rx4);
+\path [arrow] (rx4) -- (rx5);
+\path [arrow] (rx5) -- (rx6);
+\path [arrow] (rx6) -- (rx7);
+\path [arrow] (rx7) -- (rxoutlabel);
+
+% ==================== LEGEND, EQUATIONS \& NOTES ====================
+% Centered below the channel box
+\coordinate (midch) at ($(ch1.south)!0.5!(ch2.south)$);
+\node [draw=black, fill=gray!2, rounded corners=2pt, below=1.2cm of midch, xshift=-20.1em, text width=13em, minimum height=9.0em, font=\footnotesize, text=black] (legendbox) {
+    \textbf{\normalsize LEGEND} \\[0.5em]
+    \textcolor{green!60!black}{\rule{0.3cm}{0.15cm}} Modulation / Demodulation \\
+    \textcolor{violet!60!black}{\rule{0.3cm}{0.15cm}} Serial / Parallel Conv. \\
+    \textcolor{orange!60!black}{\rule{0.3cm}{0.15cm}} Space-Time Block Coding \\
+    \textcolor{gray!60!black}{\rule{0.3cm}{0.15cm}} OFDM FFT/IFFT Proc. \\
+    \textcolor{red!60!black}{\rule{0.3cm}{0.15cm}} Guard Interval (CP) Proc. \\
+    \textcolor{cyan!60!black}{\rule{0.3cm}{0.15cm}} Channel / Detection
+};
+
+\node [draw=black, fill=gray!2, rounded corners=2pt, right=0.4cm of legendbox, text width=18em, minimum height=9.0em, font=\footnotesize, text=black] (eqbox) {
+    \textbf{\normalsize KEY EQUATIONS} \\[0.5em]
+    $\bullet$ \textbf{Alamouti Encoding Matrix:} \\
+    \hspace*{1em} $\mathbf{X} = \begin{bmatrix} s_1 & s_2 \\ -s_2^* & s_1^* \end{bmatrix}$ \\
+    $\bullet$ \textbf{Received Signal Vector (Subcarrier $k$):} \\
+    \hspace*{1em} $\mathbf{y}(k) = \mathbf{H}(k)\mathbf{s}(k) + \boldsymbol{\eta}(k)$ \\
+    $\bullet$ \textbf{ML Decision Metric (16-QAM):} \\
+    \hspace*{1em} $\hat{S} = \arg\min_{S_m} \|\mathbf{r} - \mathbf{H}S_m\|^2$
+};
+
+\node [draw=black, fill=gray!2, rounded corners=2pt, right=0.4cm of eqbox, text width=20em, minimum height=9.0em, font=\footnotesize, text=black] (notebox) {
+    \textbf{\normalsize NOTES} \\[0.5em]
+    $\bullet$ \textbf{$N_{fft}$:} Number of subcarriers (64). \\
+    $\bullet$ \textbf{$N_{cp}$:} Cyclic Prefix length (16). \\
+    $\bullet$ \textbf{Rayleigh Channel:} Quasi-static fading over 2 STBC time slots. \\
+    $\bullet$ \textbf{Perfect CSI:} Receiver has complete channel state information to decode STBC. \\
+    $\bullet$ \textbf{No Pilots:} Clean simulation evaluates raw physical-layer performance.
+};
+
+\end{tikzpicture}%
+}
+\caption{Detailed System Block Diagram of the $2 \times 2$ MIMO-OFDM System}
+\label{fig:block_diagram}
+\end{figure}
+\cleardoublepage
+
+The processing chain is structured into three main segments:
 \begin{itemize}
-    \item \textbf{Transmitter:} Input Bits $\rightarrow$ Serial to Parallel (S/P) $\rightarrow$ 16-QAM Mapper $\rightarrow$ Alamouti STBC Encoder $\rightarrow$ OFDM Modulator (IFFT + Cyclic Prefix) $\rightarrow$ Transmit Antennas.
-    \item \textbf{Channel:} Multipath Rayleigh Fading Channel + Additive White Gaussian Noise (AWGN).
-    \item \textbf{Receiver:} Receive Antennas $\rightarrow$ OFDM Demodulator (Remove CP + FFT) $\rightarrow$ Alamouti STBC Decoder $\rightarrow$ Euclidean Detector $\rightarrow$ 16-QAM Demapper $\rightarrow$ Parallel to Serial (P/S) $\rightarrow$ Output Bits.
+    \item \textbf{Transmitter:} 
+    \begin{enumerate}
+        \item \textit{Bit Generator:} Generates a stream of pseudo-random binary bits.
+        \item \textit{Serial to Parallel (S/P) Converter:} Splits the serial bit stream into parallel blocks to feed the mapper.
+        \item \textit{16-QAM Mapper:} Groups the bits into 4-bit symbols and maps them onto the complex 16-QAM constellation.
+        \item \textit{Alamouti STBC Encoder:} Encodes the mapped symbols in pairs ($s_1, s_2$) across two spatial paths and two time slots.
+        \item \textit{OFDM Modulator (IFFT + CP):} Applies an $N_{fft}$-point Inverse Fast Fourier Transform (IFFT) to convert frequency subcarriers to time-domain samples, and prepends a Cyclic Prefix (CP) of length $N_{cp}$ to mitigate multipath interference.
+    \end{enumerate}
+    \item \textbf{Transmission Channel:}
+    \begin{enumerate}
+        \item \textit{Multipath Rayleigh Fading:} Simulates a multipath channel environment using a 6-tap exponentially decaying power delay profile. The fading is assumed to be quasi-static (constant over two Alamouti symbol periods).
+        \item \textit{Additive White Gaussian Noise (AWGN):} Models thermal noise at each receive antenna.
+    \end{enumerate}
+    \item \textbf{Receiver:}
+    \begin{enumerate}
+        \item \textit{OFDM Demodulator (Remove CP + FFT):} Discards the CP and applies an $N_{fft}$-point Fast Fourier Transform (FFT) to return the signals to the frequency domain.
+        \item \textit{Alamouti STBC Decoder:} Combines received signals across the two time slots and two antennas using channel estimates (Perfect CSI) to separate and estimate the transmitted symbols.
+        \item \textit{Euclidean Detector:} Computes the squared Euclidean distance between the estimated symbols and the normalized 16-QAM constellation points.
+        \item \textit{16-QAM Demapper:} Recovers the 4-bit binary sequences from the detected symbols.
+        \item \textit{Parallel to Serial (P/S) Converter:} Restores the single serial bit stream for final performance evaluation.
+    \end{enumerate}
 \end{itemize}
 
 \subsection{System Operation}
@@ -273,7 +632,7 @@ The simulation is repeated for $E_b/N_0$ values from 0 dB to 30 dB. For each val
 The performance of the 2x2 MIMO-OFDM system utilizing Alamouti Space-Time Block Coding (STBC) and 16-QAM modulation over a Rayleigh fading channel with additive white Gaussian noise (AWGN) is evaluated by measuring the Bit Error Rate (BER) and Symbol Error Rate (SER) across various Signal-to-Noise Ratio (SNR) levels.
 
 \subsection{Simulation Results}
-The obtained simulation results illustrate the variations of BER and SER as functions of $E_b/N_0$. To provide quantitative precision, specific performance data points extracted from the simulation with a step size of 2 dB are presented in Table \ref{tab:results_detailed}.
+The obtained simulation results illustrate the variations of BER and SER as functions of $E_b/N_0$. The corresponding performance curves are plotted in Figure \ref{fig:simulation_results}. To provide quantitative precision, specific performance data points extracted from the simulation with a step size of 2 dB are presented in Table \ref{tab:results_detailed}.
 
 \begin{table}[H]
 \centering
@@ -303,6 +662,14 @@ The obtained simulation results illustrate the variations of BER and SER as func
 \bottomrule
 \end{tabular}
 \end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{figure/Figure_3.pdf}
+\caption{BER and SER Performance of the 2x2 MIMO-OFDM System with Alamouti STBC and 16-QAM}
+\label{fig:simulation_results}
+\end{figure}
+
 
 \subsection{Discussion}
 
