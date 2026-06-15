@@ -197,6 +197,27 @@ The role of the Cyclic Prefix can be detailed as follows:
     which avoids the need for computationally heavy time-domain equalizers.
 \end{itemize}
 
+\subsubsection{Continuous Transmission Model and ISI Analysis}
+In a continuous transmission system, a sequence of $P$ OFDM symbols is transmitted sequentially in the time domain. Let $x_p(n)$ represent the $p$-th time-domain OFDM symbol with CP of length $N_{cp}$, where $p \in \{1, 2, \dots, P\}$ and $n \in \{0, 1, \dots, N_{fft} + N_{cp} - 1\}$. The concatenated continuous transmit signal for a given antenna can be represented as:
+\begin{equation}
+s(t) = \sum_{p=1}^{P} x_p(t - (p-1)(N_{fft} + N_{cp}))
+\end{equation}
+When this continuous stream propagates through a multipath Rayleigh fading channel with impulse response $h(t) = \sum_{l=0}^{L_{ch}-1} h_l \delta(t - l)$, the received signal $r(t)$ is the continuous convolution:
+\begin{equation}
+r(t) = (s * h)(t) + \eta(t) = \sum_{l=0}^{L_{ch}-1} h_l s(t - l) + \eta(t)
+\end{equation}
+Let us focus on the $p$-th received OFDM symbol interval, corresponding to $t = (p-1)(N_{fft} + N_{cp}) + n$ for $n \in \{0, 1, \dots, N_{fft} + N_{cp} - 1\}$. The received samples $r_p(n)$ can be written as:
+\begin{equation}
+r_p(n) = \sum_{l=0}^{L_{ch}-1} h_l s((p-1)(N_{fft} + N_{cp}) + n - l) + \eta_p(n)
+\end{equation}
+For $n < L_{ch} - 1$, the term $n - l$ can be negative, meaning that the received samples depend on the previous symbol $s((p-1)(N_{fft} + N_{cp}) + n - l) = x_{p-1}(N_{fft} + N_{cp} + n - l)$. This represents the Inter-Symbol Interference (ISI) from symbol $p-1$ leaking into the current symbol $p$.
+
+At the receiver, the first $N_{cp}$ samples of the received symbol block $r_p(n)$ are discarded. 
+\begin{itemize}
+    \item \textbf{Sufficient CP ($N_{cp} \ge L_{ch} - 1$):} Since the ISI only affects the first $L_{ch} - 1$ samples of the block, discarding the first $N_{cp}$ samples completely eliminates the ISI. The remaining $N_{fft}$ samples $y_p(m) = r_p(m + N_{cp})$ for $m \in \{0, 1, \dots, N_{fft}-1\}$ contain no contributions from $x_{p-1}(n)$ and represent a clean circular convolution of the current symbol $x_p(n)$ with the channel $h(n)$.
+    \item \textbf{Insufficient CP ($N_{cp} < L_{ch} - 1$):} If the CP is shorter than the channel delay spread, the ISI leaks into the useful FFT window. The received samples in the FFT window $y_p(m) = r_p(m + N_{cp})$ for $m < L_{ch} - 1 - N_{cp}$ will be corrupted by the tail of the previous symbol $x_{p-1}(n)$, resulting in a permanent error floor at high SNR.
+\end{itemize}
+
 \subsection{Quadrature Amplitude Modulation (16-QAM)}
 
 \subsubsection{Theory of 16-QAM Modulation}
@@ -724,6 +745,37 @@ The obtained simulation results illustrate the variations of BER and SER as func
 \label{fig:simulation_results}
 \end{figure}
 
+To analyze the performance of the system under physical multi-symbol conditions, a continuous transmission model is simulated. The bit error rate (BER) curves obtained for three different cyclic prefix lengths ($N_{cp} \in \{16, 4, 0\}$) under a 6-tap Rayleigh fading channel are presented in Table \ref{tab:cp_results} and plotted in Figure \ref{fig:cp_comparison}.
+
+\begin{table}[H]
+\centering
+\caption{BER Performance with Different CP Lengths under Continuous Transmission}
+\label{tab:cp_results}
+\vspace{0.2cm}
+\begin{tabular}{cccc}
+\toprule
+\textbf{$E_b/N_0$ (dB)} & \textbf{Sufficient CP ($N_{cp}=16$)} & \textbf{Insufficient CP ($N_{cp}=4$)} & \textbf{No CP ($N_{cp}=0$)} \\
+\midrule
+0  & 9.31083e-02 & 9.19773e-02 & 1.00272e-01 \\
+4  & 2.94128e-02 & 3.06538e-02 & 3.95167e-02 \\
+8  & 5.18065e-03 & 4.93648e-03 & 1.20423e-02 \\
+12 & 4.01979e-04 & 4.08333e-04 & 3.45750e-03 \\
+16 & 1.81250e-05 & 2.05729e-05 & 1.67828e-03 \\
+20 & 2.86458e-07 & 1.69271e-06 & 1.06664e-03 \\
+24 & 0.00000e+00 & 0.00000e+00 & 9.14505e-04 \\
+28 & 0.00000e+00 & 0.00000e+00 & 8.57891e-04 \\
+30 & 0.00000e+00 & 0.00000e+00 & 9.05703e-04 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{figure/Figure_4.pdf}
+\caption{BER Performance Comparison of 2x2 MIMO-OFDM with Different CP Lengths under Continuous Transmission}
+\label{fig:cp_comparison}
+\end{figure}
+
 
 \subsection{Discussion}
 
@@ -736,8 +788,13 @@ The SER values are higher than the BER values because each 16-QAM symbol carries
 \subsubsection{Diversity Gain from Alamouti STBC}
 The use of Alamouti STBC in the 2x2 MIMO system provides spatial diversity. By transmitting coded symbols through two transmit antennas and combining the received signals from two receive antennas, the system reduces the impact of deep fading. This explains the rapid decrease of BER and SER as $E_b/N_0$ increases.
 
-\subsubsection{Effect of OFDM in Multipath Channel}
-OFDM improves system performance in the multipath Rayleigh channel. The IFFT/FFT structure divides the frequency-selective channel into multiple narrowband subchannels, while the cyclic prefix helps preserve the circular convolution property of the channel. In this simulation, each OFDM block is processed independently. Therefore, the cyclic prefix primarily ensures that frequency-domain subcarriers are perfectly orthogonal for single-tap equalization, rather than mitigating continuous inter-block ISI. In a continuous transmission system, the cyclic prefix would also prevent inter-symbol interference (ISI) between adjacent OFDM symbols. A continuous frame-based simulation could be considered in future work to explicitly observe and model continuous block-to-block ISI.
+\subsubsection{Effect of CP Length under Continuous Transmission}
+The continuous transmission simulation results clearly demonstrate the vital role of the Cyclic Prefix (CP) in mitigating multipath fading and Inter-Symbol Interference (ISI):
+\begin{itemize}
+    \item \textbf{Sufficient CP ($N_{cp}=16 \ge L_{ch}-1$):} When the CP is longer than the maximum channel delay spread (which is $L_{ch}-1 = 5$ samples), the ISI from previous symbols falls completely inside the CP guard interval. Since the CP is discarded at the receiver, the remaining FFT window is free from any ISI. Furthermore, the linear convolution of the channel over the symbol is mathematically transformed into a circular convolution, preserving the subcarrier orthogonality and eliminating ICI. Consequently, the BER drops cleanly down to zero at high SNR without experiencing an error floor.
+    \item \textbf{Insufficient CP ($N_{cp}=4 < L_{ch}-1$):} When the CP is shorter than the channel delay spread, a portion of the channel's multipath components (specifically the 5th tap) spills past the CP and corrupts the start of the FFT window. This causes minor ISI and ICI. At high SNR (e.g., 20 dB), the BER is $1.69 \times 10^{-6}$, which is approximately 6 times higher than that of the sufficient CP case ($2.86 \times 10^{-7}$). However, because the channel profile decays exponentially ($pdp_l = e^{-l}$), the energy of the late taps is extremely small ($e^{-5} \approx 0.0067$), so the resulting ISI/ICI is weak. Thus, the error rate is still able to descend further at very high SNR without forming a prominent floor in the simulated range.
+    \item \textbf{No CP ($N_{cp}=0$):} Without any guard interval, the receiver suffers from severe block-to-block ISI and subcarrier orthogonality loss (ICI) across all channel taps. This self-interference behaves like additive noise that scales proportionally with the transmit signal power. As a result, the BER flattens out starting at 16 dB and bottlenecks at a permanent \textbf{error floor of approximately $9.0 \times 10^{-4}$}. This error floor cannot be resolved by increasing the transmit power (SNR), proving that the CP is essential for the basic operation of OFDM in multipath environments.
+\end{itemize}
 
 \subsubsection{Simulation Resolution Limit in the High-$E_b/N_0$ Region}
 In the high-$E_b/N_0$ region (specifically from 18 dB to 22 dB), a flattening of the BER and SER curves can be observed at exactly $6.51 \times 10^{-7}$ and $2.60 \times 10^{-6}$, respectively. As the simulation assumes perfect channel state information (CSI) at the receiver, this is not a physical error floor. Rather, it represents the \textbf{resolution limit of the Monte Carlo simulation} due to the finite number of transmitted bits. 
