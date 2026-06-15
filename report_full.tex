@@ -582,10 +582,11 @@ The processing chain is structured into three main segments:
     \item \textbf{Transmitter:} 
     \begin{enumerate}
         \item \textit{Bit Generator:} Generates a stream of pseudo-random binary bits.
-        \item \textit{Serial to Parallel (S/P) Converter:} Splits the serial bit stream into parallel blocks to feed the mapper.
-        \item \textit{16-QAM Mapper:} Groups the bits into 4-bit symbols and maps them onto the complex 16-QAM constellation.
-        \item \textit{Alamouti STBC Encoder:} Encodes the mapped symbols in pairs ($s_1, s_2$) across two spatial paths and two time slots.
+        \item \textit{16-QAM Mapper:} Groups the bits into 4-bit symbols and maps them onto the complex 16-QAM constellation (serial symbol stream).
+        \item \textit{Serial to Parallel (S/P) Converter:} Splits the serial symbol stream into parallel blocks of length $N_{fft}$ to map them onto the orthogonal subcarriers for each transmit antenna path ($s_1$ and $s_2$).
+        \item \textit{Alamouti STBC Encoder:} Encodes the parallel symbols in pairs ($s_1, s_2$) across two spatial paths (Antenna 1 and Antenna 2) and two time slots.
         \item \textit{OFDM Modulator (IFFT + CP):} Applies an $N_{fft}$-point Inverse Fast Fourier Transform (IFFT) to convert frequency subcarriers to time-domain samples, and prepends a Cyclic Prefix (CP) of length $N_{cp}$ to mitigate multipath interference.
+        \item \textit{Parallel to Serial (P/S) Converter:} Converts the parallel time-domain OFDM symbols back to a serial sample sequence for transmission over the air via the antennas.
     \end{enumerate}
     \item \textbf{Transmission Channel:}
     \begin{enumerate}
@@ -594,25 +595,47 @@ The processing chain is structured into three main segments:
     \end{enumerate}
     \item \textbf{Receiver:}
     \begin{enumerate}
-        \item \textit{OFDM Demodulator (Remove CP + FFT):} Discards the CP and applies an $N_{fft}$-point Fast Fourier Transform (FFT) to return the signals to the frequency domain.
+        \item \textit{Serial to Parallel (S/P) Converter:} Buffers the received serial time-domain signal samples into parallel blocks of length $N_{fft} + N_{cp} = 80$ to prepare for demodulation.
+        \item \textit{OFDM Demodulator (Remove CP + FFT):} Discards the CP and applies an $N_{fft}$-point Fast Fourier Transform (FFT) to return the signals to the frequency domain (parallel subcarriers).
         \item \textit{Alamouti STBC Decoder:} Combines received signals across the two time slots and two antennas using channel estimates (Perfect CSI) to separate and estimate the transmitted symbols.
         \item \textit{Euclidean Detector:} Computes the squared Euclidean distance between the estimated symbols and the normalized 16-QAM constellation points.
         \item \textit{16-QAM Demapper:} Recovers the 4-bit binary sequences from the detected symbols.
-        \item \textit{Parallel to Serial (P/S) Converter:} Restores the single serial bit stream for final performance evaluation.
+        \item \textit{Parallel to Serial (P/S) Converter:} Restores the single serial bit stream from the parallel decoded bits for final Bit Error Rate (BER) evaluation.
     \end{enumerate}
+\end{itemize}
+
+\subsection{Role of Serial-to-Parallel (S/P) and Parallel-to-Serial (P/S) Converters}
+In the physical communication system, data is generated as a serial bit stream, and the channel propagates signals as a continuous serial wave in time. However, OFDM is inherently a multi-carrier system where symbols are mapped onto parallel subcarriers, and STBC processes symbols in parallel blocks. Thus, S/P and P/S converters are essential interface blocks between serial transmission media and parallel processing modules:
+\begin{itemize}
+    \item \textbf{Transmitter S/P (Step 2 in diagram):} Converts the serial stream of 16-QAM symbols into parallel blocks. This is required because the IFFT block processes all $N_{fft} = 64$ subcarriers simultaneously.
+    \item \textbf{Transmitter P/S (Step 6 in diagram):} Converts the parallel time-domain samples of the OFDM symbol (length 80) into a serial sequence of samples, which are transmitted one by one over the antenna.
+    \item \textbf{Receiver S/P (Step 9 in diagram):} Receives the serial time-domain samples from the antenna and groups them into parallel blocks of size 80 so that the CP can be removed and the 64-sample block can be fed into the FFT.
+    \item \textbf{Receiver P/S (Step 15 in diagram):} Converts the parallel decoded bits back into a single serial bit stream to compare with the transmitter's input stream for BER calculation.
+\end{itemize}
+
+In the MATLAB simulation environment (\texttt{testthongtinso.m}), these hardware blocks do not exist as separate components but are implemented implicitly via array slicing and matrix reshaping:
+\begin{itemize}
+    \item \textbf{Transmitter S/P:} Implemented by partitioning the serial symbol vector \texttt{txSymbols} into parallel components \texttt{s1 = txSymbols(1:Nfft).'} and \texttt{s2 = txSymbols(Nfft+1:end).'}.
+    \item \textbf{Transmitter P/S:} The output of \texttt{ofdm\_mod} is a 1x80 vector, which represents the serial sample sequence. The channel convolution \texttt{conv(x, h)} processes this vector sequentially, simulating serial transmission.
+    \item \textbf{Receiver S/P:} Implemented by extracting a slice of the received vector \texttt{rxTime(Ncp+1:Ncp+Nfft)} in \texttt{ofdm\_demod}, which converts a portion of the serial received stream into a block of 64 samples.
+    \item \textbf{Receiver P/S:} Done by concatenating parallel estimated symbols into a column vector \texttt{rxSymbols = [s1\_hat.'; s2\_hat.']} and reshaping the bit matrix back to a 1D column vector \texttt{bits = reshape(bitGroups.', [], 1)} in \texttt{qam16\_demod}.
 \end{itemize}
 
 \subsection{System Operation}
 \begin{enumerate}
     \item \textbf{Bit Generation:} A random binary bit stream is generated.
     \item \textbf{16-QAM Mapping:} Every four bits are mapped into one normalized 16-QAM symbol according to the Gray coding rule.
+    \item \textbf{Serial to Parallel (S/P) Conversion:} Splits the serial QAM symbols into parallel subcarriers for the transmit antennas.
     \item \textbf{Alamouti STBC Encoding:} The symbols are encoded using Alamouti STBC to exploit spatial diversity.
     \item \textbf{OFDM Modulation:} The encoded symbols are transformed into the time domain using an Inverse Fast Fourier Transform (IFFT). A Cyclic Prefix (CP) is added to mitigate inter-symbol interference.
+    \item \textbf{Parallel to Serial (P/S) Conversion:} Converts the parallel time-domain samples of the OFDM symbol into a serial sequence for transmission.
     \item \textbf{Channel Transmission:} The OFDM signal propagates through a multipath Rayleigh fading channel and is corrupted by Additive White Gaussian Noise (AWGN).
-    \item \textbf{OFDM Demodulation:} At the receiver, the cyclic prefix is removed and a Fast Fourier Transform (FFT) is performed.
+    \item \textbf{Serial to Parallel (S/P) Conversion:} The received serial time-domain signal is buffered into parallel blocks of samples at the receiver.
+    \item \textbf{OFDM Demodulation:} At the receiver, the cyclic prefix is removed and a Fast Fourier Transform (FFT) is performed to return to the frequency domain (parallel subcarriers).
     \item \textbf{Alamouti STBC Decoding:} The receiver combines signals from multiple antennas and estimates the transmitted symbols using Perfect CSI.
     \item \textbf{Euclidean Distance Detection:} The Euclidean distance between the received symbol and all possible constellation points is calculated. The constellation point with the minimum distance is selected.
     \item \textbf{16-QAM Demapping:} The detected symbol is converted back into the corresponding binary sequence using the Gray mapping rule.
+    \item \textbf{Parallel to Serial (P/S) Conversion:} Restores the single serial bit stream from the parallel decoded bits.
     \item \textbf{Performance Evaluation:} The recovered bit stream is compared with the transmitted bit stream to evaluate BER and SER performance.
 \end{enumerate}
 

@@ -47,29 +47,33 @@ for isnr = 1:length(EbN0_dB)
     totalSymbols = 0;
 
     for blk = 1:Nblocks
-        % 1. Generate random bits
+        % 1. Generate random bits (Serial Bit Stream)
         NsymPerBlock = 2 * Nfft;
         NbitsPerBlock = NsymPerBlock * k;
         txBits = randi([0 1], NbitsPerBlock, 1);
 
-        % 2. 16-QAM mapping
+        % 2. 16-QAM mapping (Serial Symbol Stream)
         txSymbols = qam16_mod(txBits);
+        
+        % 3. Serial-to-Parallel (S/P) Conversion: Partition serial QAM symbol stream 
+        %    into parallel subcarriers for each transmit antenna path (s1 and s2)
         s1 = txSymbols(1:Nfft).';
         s2 = txSymbols(Nfft+1:end).';
 
-        % 3. Alamouti STBC encoding in frequency domain
+        % 4. Alamouti STBC encoding in frequency domain (parallel blocks)
         X_tx1_slot1 = txScale * s1;
         X_tx2_slot1 = txScale * s2;
         X_tx1_slot2 = txScale * (-conj(s2));
         X_tx2_slot2 = txScale * ( conj(s1));
 
-        % 4. OFDM modulation: IFFT + cyclic prefix
+        % 5. OFDM modulation: IFFT + Cyclic Prefix (CP) insertion
+        %    (P/S conversion is implicit as the resulting txTime is processed as a serial sequence)
         x_tx1_slot1 = ofdm_mod(X_tx1_slot1, Nfft, Ncp);
         x_tx2_slot1 = ofdm_mod(X_tx2_slot1, Nfft, Ncp);
         x_tx1_slot2 = ofdm_mod(X_tx1_slot2, Nfft, Ncp);
         x_tx2_slot2 = ofdm_mod(X_tx2_slot2, Nfft, Ncp);
 
-        % 5. Generate 2x2 multipath Rayleigh channel
+        % 6. Generate 2x2 multipath Rayleigh channel
         h = zeros(Nr, Nt, Lch);
         for rx = 1:Nr
             for tx = 1:Nt
@@ -77,7 +81,8 @@ for isnr = 1:length(EbN0_dB)
             end
         end
 
-        % 6. Channel transmission + AWGN
+        % 7. Channel transmission + AWGN
+        %    The convolution 'conv(x, h)' simulates the physical serial propagation in time
         y_slot1 = zeros(Nr, Nfft + Ncp + Lch - 1);
         y_slot2 = zeros(Nr, Nfft + Ncp + Lch - 1);
 
@@ -95,7 +100,9 @@ for isnr = 1:length(EbN0_dB)
         y_slot1 = y_slot1 + noise1;
         y_slot2 = y_slot2 + noise2;
 
-        % 7. OFDM receiver: remove CP + FFT
+        % 8. Receiver S/P Conversion and OFDM demodulation: remove CP + FFT
+        %    The slice 'rxTime(Ncp+1:Ncp+Nfft)' inside ofdm_demod converts the serial received stream 
+        %    into parallel blocks of size Nfft for FFT processing.
         Y1 = zeros(Nr, Nfft);
         Y2 = zeros(Nr, Nfft);
         for rx = 1:Nr
@@ -103,7 +110,7 @@ for isnr = 1:length(EbN0_dB)
             Y2(rx, :) = ofdm_demod(y_slot2(rx, :), Nfft, Ncp);
         end
 
-        % 8. Channel frequency response
+        % 9. Channel frequency response
         H = zeros(Nr, Nt, Nfft);
         for rx = 1:Nr
             for tx = 1:Nt
@@ -113,7 +120,7 @@ for isnr = 1:length(EbN0_dB)
         end
         G = txScale * H;
 
-        % 9. Alamouti STBC decoding (2 receive antennas)
+        % 10. Alamouti STBC decoding (2 receive antennas, parallel subcarriers)
         s1_hat = zeros(1, Nfft);
         s2_hat = zeros(1, Nfft);
 
@@ -137,12 +144,14 @@ for isnr = 1:length(EbN0_dB)
             s2_hat(sc) = numerator_s2 / denominator;
         end
 
+        % 11. Parallel-to-Serial (P/S) Conversion of symbols: 
+        %     Concatenate two parallel symbol streams back to a serial stream of 128 symbols
         rxSymbols = [s1_hat.'; s2_hat.'];
 
-        % 10. 16-QAM demodulation
+        % 12. 16-QAM demodulation (and bit-level P/S conversion inside qam16_demod)
         rxBits = qam16_demod(rxSymbols);
 
-        % 11. Error metrics calculation
+        % 13. Error metrics calculation
         bitErrors = sum(txBits ~= rxBits);
         txBitMatrix = reshape(txBits, k, []).';
         rxBitMatrix = reshape(rxBits, k, []).';
