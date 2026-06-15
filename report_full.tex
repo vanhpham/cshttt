@@ -382,13 +382,18 @@ To exploit diversity gain without needing multiple RF chains or channel estimati
 \path [arrow] (enc.east) -- +(0.4,0) |- (tx1.west);
 \path [arrow] (enc.east) -- +(0.4,0) |- (tx2.west);
 
-% Draw paths to receiver (placed 5.5cm to the right of tx antennas, centered at y=0)
-\node [ant, shape border rotate=270, right=5.5cm of tx1, yshift=-1.3cm] (rx1) {};
-\node [right=0.2cm of rx1, font=\footnotesize\bfseries] {Receiver ($Rx_i$)};
+% Right: Receive Antennas (placed 5.0cm to the right of tx antennas)
+\node [ant, shape border rotate=270, right=5.0cm of tx1] (rx1) {};
+\node [above=0.1cm of rx1, font=\footnotesize\bfseries] {Antenna 1 ($Rx_1$)};
 
-% Signal arrows representing channel paths h_i1 and h_i2
-\draw [arrow, dashed, green!60!black] (tx1.east) -- node[above, sloped, font=\tiny\bfseries]{$h_{i1}$ (Path 1)} (rx1.west);
-\draw [arrow, dashed, blue!60!black] (tx2.east) -- node[below, sloped, font=\tiny\bfseries]{$h_{i2}$ (Path 2)} (rx1.west);
+\node [ant, shape border rotate=270, right=5.0cm of tx2] (rx2) {};
+\node [below=0.1cm of rx2, font=\footnotesize\bfseries] {Antenna 2 ($Rx_2$)};
+
+% Signal arrows representing channel paths h_11, h_12, h_21, h_22
+\draw [arrow, dashed, green!60!black] (tx1.east) -- node[above, sloped, font=\tiny\bfseries, pos=0.2]{$h_{11}$} (rx1.west);
+\draw [arrow, dashed, blue!60!black] (tx2.east) -- node[above, sloped, font=\tiny\bfseries, pos=0.25]{$h_{12}$} (rx1.west);
+\draw [arrow, dashed, orange!70!black] (tx1.east) -- node[below, sloped, font=\tiny\bfseries, pos=0.25]{$h_{21}$} (rx2.west);
+\draw [arrow, dashed, red!60!black] (tx2.east) -- node[below, sloped, font=\tiny\bfseries, pos=0.2]{$h_{22}$} (rx2.west);
 
 % Table showing time slot transmissions (placed cleanly below to avoid overlap)
 \node [draw=black, thick, fill=white, rounded corners=2pt, below=1.8cm of enc, xshift=2.0cm, text width=16em, font=\scriptsize] (tablebox) {
