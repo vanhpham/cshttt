@@ -411,8 +411,8 @@ To exploit diversity gain without needing multiple RF chains or channel estimati
 The implemented system uses a 2x2 Alamouti Space-Time Block Code (STBC). For two consecutive symbols $s_1$ and $s_2$, the transmission matrix over two time slots is:
 \begin{equation}
 \begin{bmatrix}
-s_1 & s_2 \\
--s_2^* & s_1^*
+s_1 & -s_2^* \\
+s_2 & s_1^*
 \end{bmatrix}
 \end{equation}
 where $(*)$ denotes complex conjugation. This coding scheme provides transmit diversity and improves performance in fading environments.
