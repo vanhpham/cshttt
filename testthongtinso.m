@@ -118,7 +118,7 @@ for isnr = 1:length(EbN0_dB)
                 H(rx, tx, :) = fft([h_temp zeros(1, Nfft - Lch)], Nfft);
             end
         end
-        G = txScale * H;
+        G = txScale * H;             % Effective channel response; absorbs transmit scale factor
 
         % 10. Alamouti STBC decoding (2 receive antennas, parallel subcarriers)
         s1_hat = zeros(1, Nfft);
@@ -140,6 +140,7 @@ for isnr = 1:length(EbN0_dB)
                 denominator = denominator + abs(g1)^2 + abs(g2)^2;
             end
 
+            % Note: txScale^2 cancels out in numerator/denominator, restoring constellation scale
             s1_hat(sc) = numerator_s1 / denominator;
             s2_hat(sc) = numerator_s2 / denominator;
         end

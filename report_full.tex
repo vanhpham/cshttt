@@ -437,22 +437,24 @@ which in matrix form is:
 \end{equation}
 
 \subsubsection{Alamouti STBC Decoding}
-Assuming Perfect Channel State Information (CSI) at the receiver (meaning the gains $h_{ij}(k)$ are known), the transmitted symbols $s_1(k)$ and $s_2(k)$ are estimated by combining the received signals across both receive antennas and both time slots. The combination equations are:
+To normalize the total transmit power such that the sum of the power of the two transmit antennas is equal to 1, a power scale factor $t = \text{txScale} = 1/\sqrt{N_t} = 1/\sqrt{2}$ is applied at the transmitter. At the receiver, assuming Perfect Channel State Information (CSI), the channel estimation is represented using the effective channel response $g_{ij}(k) = \text{txScale} \cdot h_{ij}(k) = \frac{1}{\sqrt{2}} h_{ij}(k)$.
+
+The transmitted symbols $s_1(k)$ and $s_2(k)$ are estimated by combining the received signals across both receive antennas and both time slots using these effective channel gains. The combination equations are:
 \begin{equation}
-\tilde{s}_1(k) = \sum_{i=1}^{2} \left( h_{i1}^*(k) y_{i1}(k) + h_{i2}(k) y_{i2}^*(k) \right)
+\tilde{s}_1(k) = \sum_{i=1}^{2} \left( g_{i1}^*(k) y_{i1}(k) + g_{i2}(k) y_{i2}^*(k) \right)
 \end{equation}
 \begin{equation}
-\tilde{s}_2(k) = \sum_{i=1}^{2} \left( h_{i2}^*(k) y_{i1}(k) - h_{i1}(k) y_{i2}^*(k) \right)
+\tilde{s}_2(k) = \sum_{i=1}^{2} \left( g_{i2}^*(k) y_{i1}(k) - g_{i1}(k) y_{i2}^*(k) \right)
 \end{equation}
 
-To compute the final estimates for Maximum Likelihood (ML) detection, these combined signals are normalized by the total channel power of the active links:
+To compute the final decision variables for Maximum Likelihood (ML) detection, these combined signals are normalized by the total power of the active effective channels:
 \begin{equation}
-\hat{s}_1(k) = \frac{\tilde{s}_1(k)}{\sum_{i=1}^{2} \left( |h_{i1}(k)|^2 + |h_{i2}(k)|^2 \right)}
+\hat{s}_1(k) = \frac{\tilde{s}_1(k)}{\sum_{i=1}^{2} \left( |g_{i1}(k)|^2 + |g_{i2}(k)|^2 \right)}
 \end{equation}
 \begin{equation}
-\hat{s}_2(k) = \frac{\tilde{s}_2(k)}{\sum_{i=1}^{2} \left( |h_{i1}(k)|^2 + |h_{i2}(k)|^2 \right)}
+\hat{s}_2(k) = \frac{\tilde{s}_2(k)}{\sum_{i=1}^{2} \left( |g_{i1}(k)|^2 + |g_{i2}(k)|^2 \right)}
 \end{equation}
-These decision variables $\hat{s}_1(k)$ and $\hat{s}_2(k)$ are then passed to the Euclidean distance detector to find the closest constellation point in the complex plane. 
+These decision variables $\hat{s}_1(k)$ and $\hat{s}_2(k)$ are then passed to the Euclidean distance detector. Because both the received signals $y_{ij}(k)$ and the effective channel gains $g_{ij}(k)$ contain the factor $\text{txScale}$, the term $\text{txScale}^2$ appears in both the numerator and the denominator and cancels out perfectly. Therefore, the recovered symbols are restored to their original constellation scale without any amplitude shrinkage. 
 
 \section{System Block Diagram and Operation}
 
@@ -620,6 +622,7 @@ In the MATLAB simulation environment (\texttt{testthongtinso.m}), these hardware
     \item \textbf{Receiver S/P:} Implemented by extracting a slice of the received vector \texttt{rxTime(Ncp+1:Ncp+Nfft)} in \texttt{ofdm\_demod}, which converts a portion of the serial received stream into a block of 64 samples.
     \item \textbf{Receiver P/S:} Done by concatenating parallel estimated symbols into a column vector \texttt{rxSymbols = [s1\_hat.'; s2\_hat.']} and reshaping the bit matrix back to a 1D column vector \texttt{bits = reshape(bitGroups.', [], 1)} in \texttt{qam16\_demod}.
 \end{itemize}
+Thus, S/P and P/S conversions are fully represented in the simulation logic through standard index-slicing and data-reshaping operations, which correspond exactly to their physical hardware counterparts.
 
 \subsection{System Operation}
 \begin{enumerate}
@@ -729,7 +732,7 @@ The SER values are higher than the BER values because each 16-QAM symbol carries
 The use of Alamouti STBC in the 2x2 MIMO system provides spatial diversity. By transmitting coded symbols through two transmit antennas and combining the received signals from two receive antennas, the system reduces the impact of deep fading. This explains the rapid decrease of BER and SER as $E_b/N_0$ increases.
 
 \subsubsection{Effect of OFDM in Multipath Channel}
-OFDM improves system performance in the multipath Rayleigh channel. The IFFT/FFT structure divides the frequency-selective channel into multiple narrowband subchannels, while the cyclic prefix helps reduce inter-symbol interference. In this simulation, the cyclic prefix length is sufficient for the 6-tap channel, so most ISI effects are mitigated.
+OFDM improves system performance in the multipath Rayleigh channel. The IFFT/FFT structure divides the frequency-selective channel into multiple narrowband subchannels, while the cyclic prefix helps preserve the circular convolution property of the channel. In this simulation, each OFDM block is processed independently. Therefore, the cyclic prefix primarily ensures that frequency-domain subcarriers are perfectly orthogonal for single-tap equalization, rather than mitigating continuous inter-block ISI. In a continuous transmission system, the cyclic prefix would also prevent inter-symbol interference (ISI) between adjacent OFDM symbols. A continuous frame-based simulation could be considered in future work to explicitly observe and model continuous block-to-block ISI.
 
 \subsubsection{Simulation Resolution Limit in the High-$E_b/N_0$ Region}
 In the high-$E_b/N_0$ region (specifically from 18 dB to 22 dB), a flattening of the BER and SER curves can be observed at exactly $6.51 \times 10^{-7}$ and $2.60 \times 10^{-6}$, respectively. As the simulation assumes perfect channel state information (CSI) at the receiver, this is not a physical error floor. Rather, it represents the \textbf{resolution limit of the Monte Carlo simulation} due to the finite number of transmitted bits. 
@@ -870,7 +873,7 @@ for isnr = 1:length(EbN0_dB)
                 H(rx, tx, :) = fft([h_temp zeros(1, Nfft - Lch)], Nfft);
             end
         end
-        G = txScale * H;
+        G = txScale * H;             % Effective channel response; absorbs transmit scale factor
 
         % 9. Alamouti STBC decoding (2 receive antennas)
         s1_hat = zeros(1, Nfft);
@@ -892,6 +895,7 @@ for isnr = 1:length(EbN0_dB)
                 denominator = denominator + abs(g1)^2 + abs(g2)^2;
             end
 
+            % Note: txScale^2 cancels out in numerator/denominator, restoring constellation scale
             s1_hat(sc) = numerator_s1 / denominator;
             s2_hat(sc) = numerator_s2 / denominator;
         end
